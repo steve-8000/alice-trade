@@ -27,6 +27,7 @@ export const aiProviderSchema = z.object({
 
 const agentSchema = z.object({
   maxSteps: z.number().int().positive().default(20),
+  maxTokens: z.number().int().positive().optional(),
   evolutionMode: z.boolean().default(false),
   claudeCode: z.object({
     allowedTools: z.array(z.string()).optional(),

@@ -295,6 +295,7 @@ async function main() {
     () => toolCenter.getVercelTools(),
     instructions,
     config.agent.maxSteps,
+    config.agent.maxTokens,
   )
   const claudeCodeProvider = new ClaudeCodeProvider(instructions)
   const agentSdkProvider = new AgentSdkProvider(

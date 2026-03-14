@@ -13,11 +13,13 @@ export function createAgent(
   tools: Record<string, Tool>,
   instructions: string,
   maxSteps = 20,
+  maxTokens?: number,
 ) {
   return new ToolLoopAgent({
     model,
     tools,
     instructions,
+    maxTokens,
     stopWhen: stepCountIs(maxSteps),
     onStepFinish: (step) => {
       for (const tc of step.toolCalls) {

@@ -28,6 +28,7 @@ export class VercelAIProvider implements AIProvider {
     private getTools: () => Promise<Record<string, Tool>>,
     private instructions: string,
     private maxSteps: number,
+    private maxTokens?: number,
   ) {}
 
   /** Lazily create or return the cached agent, re-creating when config, tools, or system prompt change. */
@@ -41,7 +42,7 @@ export class VercelAIProvider implements AIProvider {
       const tools = disabledSet
         ? Object.fromEntries(Object.entries(allTools).filter(([name]) => !disabledSet.has(name)))
         : allTools
-      return createAgent(model, tools, systemPrompt ?? this.instructions, this.maxSteps)
+      return createAgent(model, tools, systemPrompt ?? this.instructions, this.maxSteps, this.maxTokens)
     }
 
     const toolCount = Object.keys(allTools).length
