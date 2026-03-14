@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Section, Field, inputClass } from '../components/form'
 import { Toggle } from '../components/Toggle'
-import { GuardsSection, CRYPTO_GUARD_TYPES, SECURITIES_GUARD_TYPES } from '../components/guards'
+import { GuardsSection, CRYPTO_GUARD_TYPES } from '../components/guards'
 import { SDKSelector, PLATFORM_TYPE_OPTIONS } from '../components/SDKSelector'
 import { ReconnectButton } from '../components/ReconnectButton'
 import { useTradingConfig } from '../hooks/useTradingConfig'
 import { PageHeader } from '../components/PageHeader'
-import type { PlatformConfig, CcxtPlatformConfig, AlpacaPlatformConfig, AccountConfig } from '../api/types'
+import type { PlatformConfig, CcxtPlatformConfig, AccountConfig } from '../api/types'
 
 // ==================== Dialog state ====================
 
@@ -160,13 +160,10 @@ function AccountsTable({ accounts, platforms, onSelect }: {
   const getConnectionLabel = (account: AccountConfig) => {
     const p = getPlatform(account.platformId)
     if (!p) return '—'
-    if (p.type === 'ccxt') {
-      const parts = [p.exchange]
-      if (p.defaultMarketType === 'swap') parts.push('swap')
-      else parts.push('spot')
-      return parts.join(' \u00b7 ')
-    }
-    return p.paper ? 'paper' : 'live'
+    const parts = [p.exchange]
+    if (p.defaultMarketType === 'swap') parts.push('swap')
+    else parts.push('spot')
+    return parts.join(' \u00b7 ')
   }
 
   if (accounts.length === 0) {
@@ -192,9 +189,7 @@ function AccountsTable({ accounts, platforms, onSelect }: {
         <tbody className="divide-y divide-border">
           {accounts.map((account) => {
             const p = getPlatform(account.platformId)
-            const badge = p?.type === 'ccxt'
-              ? { text: 'CC', color: 'text-accent bg-accent/10' }
-              : { text: 'AL', color: 'text-green bg-green/10' }
+            const badge = { text: 'CC', color: 'text-accent bg-accent/10' }
 
             return (
               <tr
@@ -229,7 +224,7 @@ function CreateWizard({ existingAccountIds, onSave, onClose }: {
   onClose: () => void
 }) {
   const [step, setStep] = useState(1)
-  const [type, setType] = useState<'ccxt' | 'alpaca' | null>(null)
+  const [type, setType] = useState<'ccxt' | null>(null)
 
   // Step 2 fields
   const [id, setId] = useState('')
@@ -237,7 +232,6 @@ function CreateWizard({ existingAccountIds, onSave, onClose }: {
   const [marketType, setMarketType] = useState<'swap' | 'spot'>('swap')
   const [sandbox, setSandbox] = useState(false)
   const [demoTrading, setDemoTrading] = useState(false)
-  const [paper, setPaper] = useState(true)
 
   // Step 3 fields
   const [apiKey, setApiKey] = useState('')
@@ -246,11 +240,11 @@ function CreateWizard({ existingAccountIds, onSave, onClose }: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const defaultId = type === 'ccxt' ? `${exchange}-main` : 'alpaca-paper'
+  const defaultId = `${exchange}-main`
   const finalId = id.trim() || defaultId
 
   const handleSelectType = (t: string) => {
-    setType(t as 'ccxt' | 'alpaca')
+    setType(t as 'ccxt')
     setStep(2)
   }
 
@@ -267,14 +261,12 @@ function CreateWizard({ existingAccountIds, onSave, onClose }: {
     setSaving(true); setError('')
     try {
       const platformId = `${finalId}-platform`
-      const platform: PlatformConfig = type === 'ccxt'
-        ? { id: platformId, type: 'ccxt', exchange, sandbox, demoTrading, defaultMarketType: marketType }
-        : { id: platformId, type: 'alpaca', paper }
+      const platform: PlatformConfig = { id: platformId, type: 'ccxt', exchange, sandbox, demoTrading, defaultMarketType: marketType }
       const account: AccountConfig = {
         id: finalId, platformId,
         ...(apiKey && { apiKey }),
         ...(apiSecret && { apiSecret }),
-        ...(password && type === 'ccxt' && { password }),
+        ...(password && { password }),
         guards: [],
       }
       await onSave(platform, account)
@@ -330,28 +322,13 @@ function CreateWizard({ existingAccountIds, onSave, onClose }: {
           </div>
         )}
 
-        {step === 2 && type === 'alpaca' && (
-          <div className="space-y-3">
-            <p className="text-[13px] text-text-muted mb-4">Configure your connection</p>
-            <Field label="Account ID">
-              <input className={inputClass} value={id} onChange={(e) => setId(e.target.value.trim())} placeholder={defaultId} />
-            </Field>
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <Toggle checked={paper} onChange={setPaper} />
-              <span className="text-[13px] text-text">Paper Trading</span>
-            </label>
-            <p className="text-[11px] text-text-muted/60">When enabled, orders are routed to Alpaca's paper trading environment.</p>
-            {error && <p className="text-[12px] text-red">{error}</p>}
-          </div>
-        )}
-
         {step === 3 && (
           <div className="space-y-3">
             <p className="text-[13px] text-text-muted mb-4">API Credentials</p>
             <Field label="API Key">
               <input className={inputClass} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Optional — can be added later" />
             </Field>
-            <Field label={type === 'alpaca' ? 'Secret Key' : 'API Secret'}>
+            <Field label="API Secret">
               <input className={inputClass} type="password" value={apiSecret} onChange={(e) => setApiSecret(e.target.value)} placeholder="Optional — can be added later" />
             </Field>
             {type === 'ccxt' && (
@@ -440,7 +417,7 @@ function EditDialog({ account, platform, onSaveAccount, onSavePlatform, onDelete
     }
   }
 
-  const guardTypes = platform.type === 'ccxt' ? CRYPTO_GUARD_TYPES : SECURITIES_GUARD_TYPES
+  const guardTypes = CRYPTO_GUARD_TYPES
 
   return (
     <Dialog onClose={onClose} width="w-[520px]">
@@ -460,15 +437,9 @@ function EditDialog({ account, platform, onSaveAccount, onSavePlatform, onDelete
         <Section title="Connection">
           <div className="mb-3">
             <span className="text-[12px] text-text-muted">Type</span>
-            <span className="ml-2 text-[12px] font-medium text-text">
-              {platform.type === 'ccxt' ? 'CCXT' : 'Alpaca'}
-            </span>
+            <span className="ml-2 text-[12px] font-medium text-text">CCXT</span>
           </div>
-          {platformDraft.type === 'ccxt' ? (
-            <CcxtConnectionFields draft={platformDraft} onPatch={patchPlatform} />
-          ) : (
-            <AlpacaConnectionFields draft={platformDraft} onPatch={patchPlatform} />
-          )}
+          <CcxtConnectionFields draft={platformDraft} onPatch={patchPlatform} />
         </Section>
 
         {/* Credentials */}
@@ -476,14 +447,12 @@ function EditDialog({ account, platform, onSaveAccount, onSavePlatform, onDelete
           <Field label="API Key">
             <input className={inputClass} type="password" value={accountDraft.apiKey || ''} onChange={(e) => patchAccount('apiKey', e.target.value)} placeholder="Not configured" />
           </Field>
-          <Field label={platform.type === 'alpaca' ? 'Secret Key' : 'API Secret'}>
+          <Field label="API Secret">
             <input className={inputClass} type="password" value={accountDraft.apiSecret || ''} onChange={(e) => patchAccount('apiSecret', e.target.value)} placeholder="Not configured" />
           </Field>
-          {platform.type === 'ccxt' && (
-            <Field label="Password (optional)">
-              <input className={inputClass} type="password" value={accountDraft.password || ''} onChange={(e) => patchAccount('password', e.target.value)} placeholder="Required by some exchanges (e.g. OKX)" />
-            </Field>
-          )}
+          <Field label="Password (optional)">
+            <input className={inputClass} type="password" value={accountDraft.password || ''} onChange={(e) => patchAccount('password', e.target.value)} placeholder="Required by some exchanges (e.g. OKX)" />
+          </Field>
         </Section>
 
         {/* Guards */}
@@ -566,21 +535,6 @@ function CcxtConnectionFields({ draft, onPatch }: {
           <span className="text-[13px] text-text">Demo Trading</span>
         </label>
       </div>
-    </>
-  )
-}
-
-function AlpacaConnectionFields({ draft, onPatch }: {
-  draft: AlpacaPlatformConfig
-  onPatch: (field: string, value: unknown) => void
-}) {
-  return (
-    <>
-      <label className="flex items-center gap-2.5 cursor-pointer">
-        <Toggle checked={draft.paper} onChange={(v) => onPatch('paper', v)} />
-        <span className="text-[13px] text-text">Paper Trading</span>
-      </label>
-      <p className="text-[11px] text-text-muted/60 mt-1">When enabled, orders are routed to Alpaca's paper trading environment.</p>
     </>
   )
 }

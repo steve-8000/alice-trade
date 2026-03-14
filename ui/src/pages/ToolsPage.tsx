@@ -12,14 +12,11 @@ const GROUP_LABELS: Record<string, string> = {
   brain: 'Brain',
   browser: 'Browser',
   cron: 'Cron Scheduler',
-  equity: 'Equity Data',
   'crypto-data': 'Crypto Data',
-  'currency-data': 'Currency Data',
   news: 'News',
   'news-archive': 'News Archive',
   analysis: 'Analysis Kit',
   'crypto-trading': 'Crypto Trading',
-  'securities-trading': 'Securities Trading',
 }
 
 interface ToolGroup {

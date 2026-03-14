@@ -55,12 +55,12 @@ export interface AgentSdkResult {
 
 const NORMAL_ALLOWED_TOOLS = [
   'Read', 'Write', 'Edit', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
-  'mcp__open-alice__*',
+  'mcp__clab__*',
 ]
 
 const EVOLUTION_ALLOWED_TOOLS = [
   'Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
-  'mcp__open-alice__*',
+  'mcp__clab__*',
 ]
 
 const NORMAL_EXTRA_DISALLOWED = ['Bash']
@@ -127,7 +127,7 @@ export async function askAgentSdk(
   // MCP servers
   const mcpServers: Record<string, any> = {}
   if (mcpServer) {
-    mcpServers['open-alice'] = mcpServer
+    mcpServers['clab'] = mcpServer
   }
 
   const messages: AgentSdkMessage[] = []

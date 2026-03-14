@@ -31,7 +31,7 @@ interface ChatMessageProps {
 const COPY_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`
 const CHECK_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
 
-function AliceAvatar() {
+function ClabAvatar() {
   return (
     <div className="w-6 h-6 rounded-full bg-accent/15 flex items-center justify-center text-accent shrink-0">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -127,8 +127,8 @@ export function ChatMessage({ role, text, timestamp, isGrouped, media }: ChatMes
     <div className="flex flex-col items-start message-enter group">
       {!isGrouped && (
         <div className="flex items-center gap-2 mb-1.5">
-          <AliceAvatar />
-          <span className="text-[12px] text-text-muted font-medium">Alice</span>
+          <ClabAvatar />
+          <span className="text-[12px] text-text-muted font-medium">Clab</span>
         </div>
       )}
       <div ref={contentRef} className="max-w-[90%] break-words leading-relaxed ml-8">
@@ -248,8 +248,8 @@ export function ThinkingIndicator() {
   return (
     <div className="flex flex-col items-start message-enter">
       <div className="flex items-center gap-2 mb-1.5">
-        <AliceAvatar />
-        <span className="text-[12px] text-text-muted font-medium">Alice</span>
+        <ClabAvatar />
+        <span className="text-[12px] text-text-muted font-medium">Clab</span>
       </div>
       <div className="text-text-muted ml-8">
         <div className="flex">

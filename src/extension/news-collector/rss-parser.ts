@@ -24,7 +24,7 @@ export async function fetchAndParseFeed(url: string, retries = 1): Promise<Parse
     try {
       const res = await fetch(url, {
         signal: AbortSignal.timeout(15_000),
-        headers: { 'User-Agent': 'OpenAlice/1.0 NewsCollector' },
+        headers: { 'User-Agent': 'Clab/1.0 NewsCollector' },
       })
       if (!res.ok) throw new Error(`RSS fetch failed: ${res.status} ${res.statusText}`)
       const xml = await res.text()

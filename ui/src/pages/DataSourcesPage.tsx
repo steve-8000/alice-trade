@@ -19,18 +19,12 @@ function combineStatus(a: SaveStatus, b: SaveStatus): SaveStatus {
 // ==================== Constants ====================
 
 const PROVIDER_OPTIONS: Record<string, string[]> = {
-  equity: ['yfinance', 'fmp', 'intrinio', 'tiingo', 'alpha_vantage'],
   crypto: ['yfinance', 'fmp', 'tiingo'],
-  currency: ['yfinance', 'fmp', 'tiingo'],
-  newsCompany: ['yfinance', 'fmp', 'benzinga', 'intrinio'],
   newsWorld: ['fmp', 'benzinga', 'tiingo', 'biztoc', 'intrinio'],
 }
 
 const ASSET_LABELS: Record<string, string> = {
-  equity: 'Equity',
   crypto: 'Crypto',
-  currency: 'Currency',
-  newsCompany: 'News (Company)',
   newsWorld: 'News (World)',
 }
 
@@ -46,14 +40,7 @@ const PROVIDER_KEY_MAP: Record<string, string | null> = {
 }
 
 /** Macro/utility providers used by dedicated endpoints (not per-asset-class selectable) */
-const UTILITY_PROVIDERS = [
-  { key: 'fred', name: 'FRED', desc: 'Federal Reserve Economic Data — CPI, GDP, interest rates, macro indicators.', hint: 'Free — fredaccount.stlouisfed.org/apikeys' },
-  { key: 'bls', name: 'BLS', desc: 'Bureau of Labor Statistics — employment, payrolls, wages, CPI.', hint: 'Free — registrationapps.bls.gov/bls_registration' },
-  { key: 'eia', name: 'EIA', desc: 'Energy Information Administration — petroleum status, energy reports.', hint: 'Free — eia.gov/opendata' },
-  { key: 'econdb', name: 'EconDB', desc: 'Global macro indicators, country profiles, shipping data.', hint: 'Optional — works without key (limited). econdb.com' },
-  { key: 'nasdaq', name: 'Nasdaq', desc: 'Nasdaq Data Link — dividend/earnings calendars, short interest.', hint: 'Freemium — data.nasdaq.com' },
-  { key: 'tradingeconomics', name: 'Trading Economics', desc: '20M+ indicators across 196 countries, economic calendar.', hint: 'Paid — tradingeconomics.com' },
-] as const
+const UTILITY_PROVIDERS: ReadonlyArray<{ key: string; name: string; desc: string; hint: string }> = []
 
 // ==================== Zone ====================
 

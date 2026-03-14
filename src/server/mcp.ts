@@ -67,7 +67,7 @@ export class McpPlugin implements Plugin {
 
     const createMcpServer = async () => {
       const tools = await toolCenter.getMcpTools()
-      const mcp = new McpServer({ name: 'open-alice', version: '1.0.0' })
+      const mcp = new McpServer({ name: 'clab', version: '1.0.0' })
 
       for (const [name, t] of Object.entries(tools)) {
         if (!t.execute) continue

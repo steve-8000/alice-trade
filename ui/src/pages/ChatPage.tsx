@@ -11,7 +11,7 @@ interface ChatPageProps {
 }
 
 export function ChatPage({ onSSEStatus }: ChatPageProps) {
-  const [channels, setChannels] = useState<ChannelListItem[]>([{ id: 'default', label: 'Alice' }])
+  const [channels, setChannels] = useState<ChannelListItem[]>([{ id: 'default', label: 'Clab' }])
   const [activeChannel, setActiveChannel] = useState('default')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [newMsgCount, setNewMsgCount] = useState(0)
@@ -140,7 +140,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
-            Alice
+            Clab
           </button>
           <span className="text-sm text-text-muted/50">|</span>
           <span className="text-sm font-medium text-text">
@@ -277,7 +277,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
             <div className="text-center">
               {activeChannel === 'default' ? (
                 <>
-                  <h2 className="text-lg font-semibold text-text mb-1">Hi, I'm Alice</h2>
+                  <h2 className="text-lg font-semibold text-text mb-1">Hi, I'm Clab</h2>
                   <p className="text-sm text-text-muted">Send a message to start chatting</p>
                 </>
               ) : (

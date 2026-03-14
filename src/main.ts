@@ -22,17 +22,12 @@ import type { AccountSetup, GitExportState, ITradingGit, IPlatform } from './ext
 import { Brain, createBrainTools } from './extension/brain/index.js'
 import type { BrainExportState } from './extension/brain/index.js'
 import { createBrowserTools } from './extension/browser/index.js'
-import { SymbolIndex } from './openbb/equity/index.js'
-import { createEquityTools } from './extension/equity/index.js'
-import { getSDKExecutor, buildRouteMap, SDKEquityClient, SDKCryptoClient, SDKCurrencyClient, SDKNewsClient } from './openbb/sdk/index.js'
-import type { EquityClientLike, CryptoClientLike, CurrencyClientLike, NewsClientLike } from './openbb/sdk/types.js'
+import { getSDKExecutor, buildRouteMap, SDKCryptoClient, SDKNewsClient } from './openbb/sdk/index.js'
+import type { CryptoClientLike, NewsClientLike } from './openbb/sdk/types.js'
 import { buildSDKCredentials } from './openbb/credential-map.js'
-import { OpenBBEquityClient } from './openbb/equity/client.js'
 import { OpenBBCryptoClient } from './openbb/crypto/client.js'
-import { OpenBBCurrencyClient } from './openbb/currency/client.js'
 import { OpenBBNewsClient } from './openbb/news/client.js'
 import { OpenBBServerPlugin } from './server/opentypebb.js'
-import { createMarketSearchTools } from './extension/market/index.js'
 import { createNewsTools } from './extension/news/index.js'
 import { createAnalysisTools } from './extension/analysis-kit/index.js'
 import { SessionStore } from './core/session.js'
@@ -59,8 +54,6 @@ function gitFilePath(accountId: string): string {
 }
 const LEGACY_GIT_PATHS: Record<string, string> = {
   'bybit-main': resolve('data/crypto-trading/commit.json'),
-  'alpaca-paper': resolve('data/securities-trading/commit.json'),
-  'alpaca-live': resolve('data/securities-trading/commit.json'),
 }
 const FRONTAL_LOBE_FILE = resolve('data/brain/frontal-lobe.md')
 const EMOTION_LOG_FILE = resolve('data/brain/emotion-log.md')
@@ -146,17 +139,12 @@ async function main() {
     return true
   }
 
-  // Alpaca accounts — sync init (fast, blocks startup)
   // CCXT accounts — async background init (loadMarkets is slow)
   const ccxtAccountConfigs: Array<{ cfg: typeof tradingConfig.accounts[number]; platform: IPlatform }> = []
 
   for (const accCfg of tradingConfig.accounts) {
     const platform = platformRegistry.get(accCfg.platformId)!
-    if (platform.providerType === 'alpaca') {
-      await initAccount(accCfg, platform)
-    } else {
-      ccxtAccountConfigs.push({ cfg: accCfg, platform })
-    }
+    ccxtAccountConfigs.push({ cfg: accCfg, platform })
   }
 
   // CCXT init in background — register tools when ready
@@ -226,34 +214,23 @@ async function main() {
 
   const { providers } = config.openbb
 
-  let equityClient: EquityClientLike
   let cryptoClient: CryptoClientLike
-  let currencyClient: CurrencyClientLike
   let newsClient: NewsClientLike
 
   if (config.openbb.dataBackend === 'openbb') {
     const url = config.openbb.apiUrl
     const keys = config.openbb.providerKeys
-    equityClient = new OpenBBEquityClient(url, providers.equity, keys)
     cryptoClient = new OpenBBCryptoClient(url, providers.crypto, keys)
-    currencyClient = new OpenBBCurrencyClient(url, providers.currency, keys)
     newsClient = new OpenBBNewsClient(url, undefined, keys)
   } else {
     const executor = getSDKExecutor()
     const routeMap = buildRouteMap()
     const credentials = buildSDKCredentials(config.openbb.providerKeys)
-    equityClient = new SDKEquityClient(executor, 'equity', providers.equity, credentials, routeMap)
     cryptoClient = new SDKCryptoClient(executor, 'crypto', providers.crypto, credentials, routeMap)
-    currencyClient = new SDKCurrencyClient(executor, 'currency', providers.currency, credentials, routeMap)
     newsClient = new SDKNewsClient(executor, 'news', undefined, credentials, routeMap)
   }
 
   // OpenBB API server is started later via optionalPlugins
-
-  // ==================== Equity Symbol Index ====================
-
-  const symbolIndex = new SymbolIndex()
-  await symbolIndex.load(equityClient)
 
   // ==================== Tool Center ====================
 
@@ -273,8 +250,6 @@ async function main() {
   toolCenter.register(createBrainTools(brain), 'brain')
   toolCenter.register(createBrowserTools(), 'browser')
   toolCenter.register(createCronTools(cronEngine), 'cron')
-  toolCenter.register(createMarketSearchTools(symbolIndex, cryptoClient, currencyClient), 'market-search')
-  toolCenter.register(createEquityTools(equityClient), 'equity')
   let newsTools = createNewsTools(newsClient, {
     companyProvider: providers.newsCompany,
   })
@@ -285,7 +260,7 @@ async function main() {
   if (config.newsCollector.enabled) {
     toolCenter.register(createNewsArchiveTools(newsStore), 'news-archive')
   }
-  toolCenter.register(createAnalysisTools(equityClient, cryptoClient, currencyClient), 'analysis')
+  toolCenter.register(createAnalysisTools(cryptoClient), 'analysis')
 
   console.log(`tool-center: ${toolCenter.list().length} tools registered`)
 
@@ -389,17 +364,15 @@ async function main() {
         return { success: false, error: `Account "${accountId}" init failed` }
       }
 
-      // Re-register CCXT-specific tools if this is a CCXT account
-      if (platform.providerType !== 'alpaca') {
-        toolCenter.register(
-          createCcxtProviderTools({
-            accountManager,
-            getGit: (id) => accountSetups.get(id)?.git,
-            getGitState: (id) => accountSetups.get(id)?.getGitState(),
-          }),
-          'trading-ccxt',
-        )
-      }
+      // Re-register CCXT-specific tools
+      toolCenter.register(
+        createCcxtProviderTools({
+          accountManager,
+          getGit: (id) => accountSetups.get(id)?.git,
+          getGitState: (id) => accountSetups.get(id)?.getGitState(),
+        }),
+        'trading-ccxt',
+      )
 
       const label = accountManager.getAccount(accountId)?.label ?? accountId
       console.log(`reconnect: ${label} online`)

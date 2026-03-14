@@ -197,13 +197,6 @@ export const PLATFORM_TYPE_OPTIONS: SDKOption[] = [
     badge: 'CC',
     badgeColor: 'text-accent',
   },
-  {
-    id: 'alpaca',
-    name: 'Alpaca (Securities)',
-    description: 'Commission-free US equities and ETFs with fractional share support.',
-    badge: 'AL',
-    badgeColor: 'text-green',
-  },
 ]
 
 export const DATASOURCE_OPTIONS: SDKOption[] = [

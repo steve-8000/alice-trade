@@ -78,5 +78,5 @@ export function buildAgentSdkMcpServer(
       })
     })
 
-  return createSdkMcpServer({ name: 'open-alice', tools: sdkTools })
+  return createSdkMcpServer({ name: 'clab', tools: sdkTools })
 }

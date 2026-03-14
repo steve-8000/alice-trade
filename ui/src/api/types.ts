@@ -213,14 +213,7 @@ export interface CcxtPlatformConfig {
   defaultMarketType: 'spot' | 'swap'
 }
 
-export interface AlpacaPlatformConfig {
-  id: string
-  label?: string
-  type: 'alpaca'
-  paper: boolean
-}
-
-export type PlatformConfig = CcxtPlatformConfig | AlpacaPlatformConfig
+export type PlatformConfig = CcxtPlatformConfig
 
 export interface AccountConfig {
   id: string

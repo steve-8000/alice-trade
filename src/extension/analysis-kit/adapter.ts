@@ -8,7 +8,7 @@
 
 import { tool } from 'ai'
 import { z } from 'zod'
-import type { EquityClientLike, CryptoClientLike, CurrencyClientLike } from '@/openbb/sdk/types'
+import type { CryptoClientLike } from '@/openbb/sdk/types'
 import { IndicatorCalculator } from './indicator/calculator'
 import type { IndicatorContext, OhlcvData } from './indicator/types'
 
@@ -37,28 +37,12 @@ function buildStartDate(interval: string): string {
 }
 
 function buildContext(
-  asset: 'equity' | 'crypto' | 'currency',
-  equityClient: EquityClientLike,
   cryptoClient: CryptoClientLike,
-  currencyClient: CurrencyClientLike,
 ): IndicatorContext {
   return {
     getHistoricalData: async (symbol, interval) => {
       const start_date = buildStartDate(interval)
-
-      let results: OhlcvData[]
-      switch (asset) {
-        case 'equity':
-          results = await equityClient.getHistorical({ symbol, start_date, interval }) as OhlcvData[]
-          break
-        case 'crypto':
-          results = await cryptoClient.getHistorical({ symbol, start_date, interval }) as OhlcvData[]
-          break
-        case 'currency':
-          results = await currencyClient.getHistorical({ symbol, start_date, interval }) as OhlcvData[]
-          break
-      }
-
+      const results = await cryptoClient.getHistorical({ symbol, start_date, interval }) as OhlcvData[]
       results.sort((a, b) => a.date.localeCompare(b.date))
       return results
     },
@@ -66,34 +50,29 @@ function buildContext(
 }
 
 export function createAnalysisTools(
-  equityClient: EquityClientLike,
   cryptoClient: CryptoClientLike,
-  currencyClient: CurrencyClientLike,
 ) {
   return {
     calculateIndicator: tool({
-      description: `Calculate technical indicators for any asset (equity, crypto, currency) using formula expressions.
+      description: `Calculate technical indicators for crypto assets using formula expressions.
 
-Asset classes: "equity" for stocks, "crypto" for cryptocurrencies, "currency" for forex pairs.
-
-Data access: CLOSE('AAPL', '1d'), HIGH, LOW, OPEN, VOLUME — args: symbol, interval (e.g. '1d', '1w', '1h').
+Data access: CLOSE('BTCUSD', '1d'), HIGH, LOW, OPEN, VOLUME — args: symbol, interval (e.g. '1d', '1w', '1h').
 Statistics: SMA(data, period), EMA, STDEV, MAX, MIN, SUM, AVERAGE.
 Technical: RSI(data, 14), BBANDS(data, 20, 2), MACD(data, 12, 26, 9), ATR(highs, lows, closes, 14).
-Array access: CLOSE('AAPL', '1d')[-1] for latest price. Supports +, -, *, / operators.
+Array access: CLOSE('BTCUSD', '1d')[-1] for latest price. Supports +, -, *, / operators.
 
 Examples:
-  asset="equity":   SMA(CLOSE('AAPL', '1d'), 50)
-  asset="crypto":   RSI(CLOSE('BTCUSD', '1d'), 14)
-  asset="currency": CLOSE('EURUSD', '1d')[-1]
+  RSI(CLOSE('BTCUSD', '1d'), 14)
+  SMA(CLOSE('ETHUSD', '1d'), 50)
+  BBANDS(CLOSE('SOLUSD', '1d'), 20, 2)
 
-Use the corresponding search tool first to resolve the correct symbol.`,
+Use the crypto search tool first to resolve the correct symbol.`,
       inputSchema: z.object({
-        asset: z.enum(['equity', 'crypto', 'currency']).describe('Asset class'),
-        formula: z.string().describe("Formula expression, e.g. SMA(CLOSE('AAPL', '1d'), 50)"),
+        formula: z.string().describe("Formula expression, e.g. RSI(CLOSE('BTCUSD', '1d'), 14)"),
         precision: z.number().int().min(0).max(10).optional().describe('Decimal places (default: 4)'),
       }),
-      execute: async ({ asset, formula, precision }) => {
-        const context = buildContext(asset, equityClient, cryptoClient, currencyClient)
+      execute: async ({ formula, precision }) => {
+        const context = buildContext(cryptoClient)
         const calculator = new IndicatorCalculator(context)
         return await calculator.calculate(formula, precision)
       },

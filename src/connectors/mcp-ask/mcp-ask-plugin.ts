@@ -1,12 +1,12 @@
 /**
  * MCP Ask Connector
  *
- * Exposes Alice's conversation ability via a standalone MCP server on a
+ * Exposes Clab's conversation ability via a standalone MCP server on a
  * dedicated port. External agents (e.g. OpenClaw) call `askWithSession`
- * to talk to Alice as an agent — not to use her tools directly.
+ * to talk to Clab as an agent — not to use its tools directly.
  *
  * Deliberately separated from the main MCP server (which exposes internal
- * tools) to prevent circular calls: Alice's own AI provider never sees
+ * tools) to prevent circular calls: Clab's own AI provider never sees
  * these tools because they are not registered in ToolCenter.
  */
 
@@ -50,13 +50,13 @@ export class McpAskPlugin implements Plugin {
     const plugin = this
 
     const createMcpServer = () => {
-      const mcp = new McpServer({ name: 'open-alice-ask', version: '1.0.0' })
+      const mcp = new McpServer({ name: 'clab-ask', version: '1.0.0' })
 
       // ── askWithSession ──
       mcp.tool(
         'askWithSession',
-        'Send a message to Alice and get a response within a persistent session.',
-        { message: z.string().describe('The message to send to Alice'), sessionId: z.string().describe('Session identifier (caller-managed)') },
+        'Send a message to Clab and get a response within a persistent session.',
+        { message: z.string().describe('The message to send to Clab'), sessionId: z.string().describe('Session identifier (caller-managed)') },
         async ({ message, sessionId }) => {
           const session = await plugin.getSession(sessionId)
 

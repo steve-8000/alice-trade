@@ -17,7 +17,7 @@ export function createChannelsRoutes({ sessions, sseByChannel }: ChannelsDeps) {
   app.get('/', async (c) => {
     const subChannels = await readWebSubchannels()
     const channels = [
-      { id: 'default', label: 'Alice' },
+      { id: 'default', label: 'Clab' },
       ...subChannels,
     ]
     return c.json({ channels })
