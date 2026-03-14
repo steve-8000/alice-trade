@@ -1,4 +1,4 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@10.29.2 --activate
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY . .
 RUN pnpm build
 
 # ---- Runtime ----
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 RUN corepack enable && corepack prepare pnpm@10.29.2 --activate
 WORKDIR /app
 
