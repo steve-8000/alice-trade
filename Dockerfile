@@ -21,8 +21,7 @@ WORKDIR /app
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/packages/opentypebb/dist ./packages/opentypebb/dist
-COPY --from=build /app/packages/opentypebb/package.json ./packages/opentypebb/
+COPY --from=build /app/packages/opentypebb ./packages/opentypebb
 COPY --from=build /app/package.json ./
 COPY --from=build /app/data/default ./data/default
 
