@@ -1,0 +1,17 @@
+node_modules
+dist
+logs
+data/sessions
+data/brain
+data/trading
+data/news
+data/config
+.git
+.claude
+.env
+.env.*
+*.log
+coverage
+.DS_Store
+.vscode
+.idea

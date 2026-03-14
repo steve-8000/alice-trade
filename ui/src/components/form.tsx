@@ -1,0 +1,66 @@
+import type { ReactNode } from 'react'
+
+// ==================== Shared class constants ====================
+
+export const inputClass =
+  'w-full px-3 py-2 bg-bg text-text border border-border rounded-lg font-sans text-sm outline-none transition-all duration-200 focus:border-accent/60 focus:shadow-[0_0_0_1px_rgba(88,166,255,0.1)]'
+
+// ==================== Card ====================
+
+interface CardProps {
+  children: ReactNode
+  className?: string
+}
+
+export function Card({ children, className = '' }: CardProps) {
+  return (
+    <div className={`bg-bg-secondary/50 border border-border/60 rounded-xl p-5 ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+// ==================== Section ====================
+
+interface SectionProps {
+  id?: string
+  title: string
+  description?: string
+  children: ReactNode
+}
+
+export function Section({ id, title, description, children }: SectionProps) {
+  return (
+    <Card>
+      <div id={id}>
+        <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wider mb-1">
+          {title}
+        </h3>
+        {description && (
+          <p className="text-[13px] text-text-muted/70 mb-4 leading-relaxed">{description}</p>
+        )}
+        {children}
+      </div>
+    </Card>
+  )
+}
+
+// ==================== Field ====================
+
+interface FieldProps {
+  label: string
+  description?: string
+  children: ReactNode
+}
+
+export function Field({ label, description, children }: FieldProps) {
+  return (
+    <div className="mb-3.5 last:mb-0">
+      <label className="block text-[13px] text-text mb-1.5 font-medium">{label}</label>
+      {children}
+      {description && (
+        <p className="text-[12px] text-text-muted/60 mt-1">{description}</p>
+      )}
+    </div>
+  )
+}

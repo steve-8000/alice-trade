@@ -1,0 +1,30 @@
+node_modules/
+dist/
+logs/
+/data/*
+!/data/default/
+!/data/default/**
+state.json
+*.log
+
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build cache
+*.tsbuildinfo
+
+# Test
+coverage/
+
+# Claude Code
+.claude/
