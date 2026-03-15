@@ -1,4 +1,9 @@
-import { sma, ema, rsi, macd, bollingerBands, crossesAbove, crossesBelow, waveTrend, stochRsi, rsiMfi } from './indicators.js'
+import {
+  sma, ema, rsi, macd, bollingerBands, crossesAbove, crossesBelow, waveTrend, stochRsi, rsiMfi, atr, vwap,
+  williamsR, cci, adx, roc, momentum, obv, mfi, psar, ichimokuTenkan, ichimokuKijun,
+  donchianUpper, donchianLower, keltnerUpper, keltnerLower, stdDev, cmf, highest, lowest,
+  dema, tema, wma, hma, trix, chop, aroonUp, aroonDown, ultimateOsc, ppo, dpo, massIndex,
+} from './indicators.js'
 import type { MarketDataStore, Candle } from '../market-data/store.js'
 import type { StrategyStore, Strategy, BacktestTrade } from './store.js'
 
@@ -264,6 +269,32 @@ export class BacktestEngine {
           if (mfiValues[i]! > mfiValues[i - 1]!) shortVotes = Math.max(0, shortVotes - 1)
         }
 
+        // --- Custom filters from config ---
+        if (cfg.customFilters && Array.isArray(cfg.customFilters)) {
+          for (const filter of cfg.customFilters) {
+            const val = this.evalIndicator(filter.indicator, filter.period, closes, _highs, _lows, volumes, i)
+            const cmpVal = filter.compareIndicator
+              ? this.evalIndicator(filter.compareIndicator, filter.comparePeriod || filter.period, closes, _highs, _lows, volumes, i)
+              : filter.value ?? 0
+
+            if (val === null || cmpVal === null) continue
+
+            const multiplier = filter.multiplier || 1
+            const pass = filter.operator === 'above' ? val > cmpVal * multiplier
+              : filter.operator === 'below' ? val < cmpVal * multiplier
+              : filter.operator === 'crossAbove' ? (i > 0 && val > cmpVal * multiplier && (this.evalIndicator(filter.indicator, filter.period, closes, _highs, _lows, volumes, i - 1) ?? 0) <= cmpVal * multiplier)
+              : filter.operator === 'crossBelow' ? (i > 0 && val < cmpVal * multiplier && (this.evalIndicator(filter.indicator, filter.period, closes, _highs, _lows, volumes, i - 1) ?? 0) >= cmpVal * multiplier)
+              : false
+
+            if (filter.role === 'longEntry' && pass) longVotes++
+            if (filter.role === 'shortEntry' && pass) shortVotes++
+            if (filter.role === 'longFilter' && !pass) longVotes = Math.max(0, longVotes - 1)
+            if (filter.role === 'shortFilter' && !pass) shortVotes = Math.max(0, shortVotes - 1)
+            if (filter.role === 'longExit' && pass) closeLongVotes++
+            if (filter.role === 'shortExit' && pass) closeShortVotes++
+          }
+        }
+
         // --- Determine signal: require majority or at least 1 if only 1 indicator ---
         const threshold = cfg.minSignalStrength || (totalIndicators === 1 ? 1 : Math.ceil(totalIndicators * 0.5))
 
@@ -280,6 +311,69 @@ export class BacktestEngine {
     }
 
     return signals
+  }
+
+  /** Evaluate a named indicator at bar index. Used by customFilters. */
+  private evalIndicator(
+    name: string, period: number | undefined,
+    closes: number[], highs: number[], lows: number[], volumes: number[],
+    index: number,
+  ): number | null {
+    const p = period || 14
+    switch (name) {
+      case 'close': return closes[index]
+      case 'high': return highs[index]
+      case 'low': return lows[index]
+      case 'volume': return volumes[index]
+      case 'sma': return sma(closes, p)[index]
+      case 'ema': return ema(closes, p)[index]
+      case 'rsi': return rsi(closes, p)[index]
+      case 'atr': return atr(highs, lows, closes, p)[index]
+      case 'vwap': return vwap(closes, volumes, p)[index]
+      case 'sma_volume': return sma(volumes, p)[index]
+      case 'ema_close': return ema(closes, p)[index]
+      case 'bb_upper': { const bb = bollingerBands(closes, p); return bb.upper[index] }
+      case 'bb_lower': { const bb = bollingerBands(closes, p); return bb.lower[index] }
+      case 'williamsR': return williamsR(highs, lows, closes, p)[index]
+      case 'cci': return cci(highs, lows, closes, p)[index]
+      case 'adx': return adx(highs, lows, closes, p)[index]
+      case 'roc': return roc(closes, p)[index]
+      case 'momentum': return momentum(closes, p)[index]
+      case 'obv': return obv(closes, volumes)[index]
+      case 'mfi': return mfi(highs, lows, closes, volumes, p)[index]
+      case 'psar': return psar(highs, lows)[index]
+      case 'ichimoku_tenkan': return ichimokuTenkan(highs, lows, p)[index]
+      case 'ichimoku_kijun': return ichimokuKijun(highs, lows, p)[index]
+      case 'donchian_upper': return donchianUpper(highs, p)[index]
+      case 'donchian_lower': return donchianLower(lows, p)[index]
+      case 'keltner_upper': return keltnerUpper(closes, highs, lows, p)[index]
+      case 'keltner_lower': return keltnerLower(closes, highs, lows, p)[index]
+      case 'stddev': return stdDev(closes, p)[index]
+      case 'cmf': return cmf(highs, lows, closes, volumes, p)[index]
+      case 'highest': return highest(highs, p)[index]
+      case 'lowest': return lowest(lows, p)[index]
+      case 'dema': return dema(closes, p)[index]
+      case 'tema': return tema(closes, p)[index]
+      case 'wma': return wma(closes, p)[index]
+      case 'hma': return hma(closes, p)[index]
+      case 'trix': return trix(closes, p)[index]
+      case 'chop': return chop(highs, lows, closes, p)[index]
+      case 'aroon_up': return aroonUp(highs, p)[index]
+      case 'aroon_down': return aroonDown(lows, p)[index]
+      case 'ultimate_osc': return ultimateOsc(highs, lows, closes)[index]
+      case 'ppo': return ppo(closes)[index]
+      case 'dpo': return dpo(closes, p)[index]
+      case 'mass_index': return massIndex(highs, lows)[index]
+      case 'stoch_k': { const s = stochRsi(closes, p, p, 3, 3); return s.k[index] }
+      case 'stoch_d': { const s = stochRsi(closes, p, p, 3, 3); return s.d[index] }
+      case 'macd_line': { const m = macd(closes, 12, 26, 9); return m.macd[index] }
+      case 'macd_signal': { const m = macd(closes, 12, 26, 9); return m.signal[index] }
+      case 'macd_histogram': { const m = macd(closes, 12, 26, 9); return m.histogram[index] }
+      case 'bb_middle': { const bb = bollingerBands(closes, p); return bb.middle[index] }
+      case 'wt1': { const hlc3 = closes.map((c, j) => (highs[j] + lows[j] + c) / 3); return waveTrend(hlc3, 9, 12, 3).wt1[index] }
+      case 'wt2': { const hlc3 = closes.map((c, j) => (highs[j] + lows[j] + c) / 3); return waveTrend(hlc3, 9, 12, 3).wt2[index] }
+      default: return null
+    }
   }
 
   private getRiskParams(riskStrategies: Strategy[]): RiskParams {

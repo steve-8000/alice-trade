@@ -236,6 +236,10 @@ The engine auto-detects indicators from config keys. Include ANY of these to act
 **General:** cooldownBars(0), allowLong(true), allowShort(true), minSignalStrength(auto)
 **Risk:** stopPct, takePct, dailyLossLimitPct, maxConsecutiveLosses, maxOpenPositions, riskPerTradePct
 Multiple indicators = AND filter (majority voting). Tune by changing these numeric values.
+
+Available customFilter indicators: close, high, low, volume, sma, ema, rsi, atr, vwap, williamsR, cci, adx, roc, momentum, obv, mfi, psar, ichimoku_tenkan, ichimoku_kijun, donchian_upper, donchian_lower, keltner_upper, keltner_lower, stddev, cmf, highest, lowest, dema, tema, wma, hma, trix, chop, aroon_up, aroon_down, ultimate_osc, ppo, dpo, mass_index, stoch_k, stoch_d, macd_line, macd_signal, macd_histogram, bb_upper, bb_lower, bb_middle, wt1, wt2, sma_volume
+Operators: above, below, crossAbove, crossBelow
+Roles: longEntry, shortEntry, longFilter, shortFilter, longExit, shortExit
 `)
 
   // ==================== Event Log ====================
