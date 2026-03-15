@@ -1,8 +1,7 @@
 /**
  * Cron Tools — AI-facing tool definitions for the cron engine.
  *
- * Exposes: cronList, cronAdd, cronUpdate, cronRemove, cronRunNow
- * These match the MCP tool interface the AI is already trained on.
+ * Exposes a single `cron` tool with action parameter for list/add/update/remove/runNow.
  */
 
 import { tool } from 'ai'
@@ -30,111 +29,82 @@ const scheduleSchema = z.discriminatedUnion('kind', [
 
 export function createCronTools(cronEngine: CronEngine) {
   return {
-    cronList: tool({
+    cron: tool({
       description:
-        'List all scheduled cron jobs.\n\n' +
-        'Returns an array of jobs, each with:\n' +
-        '- id: Short identifier (use this for update/remove/runNow)\n' +
-        '- name: Human-readable name\n' +
-        '- enabled: Whether the job is active\n' +
-        '- schedule: When it runs (at/every/cron)\n' +
-        '- payload: The message delivered to you when it fires\n' +
-        '- state: Runtime info (nextRunAtMs, lastRunAtMs, lastStatus, consecutiveErrors)',
-      inputSchema: z.object({}),
-      execute: async () => {
-        return cronEngine.list()
-      },
-    }),
-
-    cronAdd: tool({
-      description:
-        'Create a new scheduled job.\n\n' +
-        'The job will fire according to the schedule and deliver the payload text to you\n' +
-        'as a system event during the next heartbeat tick.\n\n' +
-        'Schedule types:\n' +
-        '- at: One-shot at a specific time. E.g. { kind: "at", at: "2025-06-01T14:00:00Z" }\n' +
-        '- every: Repeating interval. E.g. { kind: "every", every: "2h" } or { kind: "every", every: "30m" }\n' +
-        '- cron: Cron expression. E.g. { kind: "cron", cron: "0 9 * * 1-5" } (weekdays 9am)\n\n' +
-        "Returns the new job's id.",
+        'Manage cron jobs: list, add, update, remove, or run now.\n\n' +
+        '- list: Show all scheduled jobs with their status and next run time\n' +
+        '- add: Create a new scheduled job (requires name, payload, schedule)\n' +
+        '- update: Modify an existing job (requires id, plus fields to change)\n' +
+        '- remove: Delete a job permanently (requires id)\n' +
+        '- runNow: Manually trigger a job immediately (requires id)',
       inputSchema: z.object({
-        name: z.string().describe('Short descriptive name for the job, e.g. "Check ETH funding rate"'),
-        payload: z.string().describe('The reminder/instruction text delivered to you when the job fires'),
-        schedule: scheduleSchema.optional().describe('When the job should run'),
-        enabled: z.boolean().optional().describe('Whether the job starts enabled (default: true)'),
+        action: z.enum(['list', 'add', 'update', 'remove', 'runNow']).describe('Operation to perform'),
+        id: z.string().optional().describe('Job id (required for update, remove, runNow)'),
+        name: z.string().optional().describe('Short descriptive name (required for add)'),
+        payload: z.string().optional().describe('Reminder/instruction text delivered when the job fires (required for add)'),
+        schedule: scheduleSchema.optional().describe('When the job should run (required for add)'),
+        enabled: z.boolean().optional().describe('Whether the job is enabled (for add/update)'),
         sessionTarget: z
           .enum(['main', 'isolated'])
           .optional()
-          .describe('Where to run: "main" injects into heartbeat session (default), "isolated" runs in a fresh session'),
+          .describe('Where to run: "main" injects into heartbeat session, "isolated" runs in a fresh session'),
       }),
-      execute: async ({ name, payload, schedule, enabled }) => {
-        if (!schedule) {
-          return { error: 'schedule is required' }
-        }
-        const id = await cronEngine.add({
-          name,
-          payload,
-          schedule,
-          enabled,
-        })
-        return { id }
-      },
-    }),
+      execute: async (input) => {
+        switch (input.action) {
+          case 'list': {
+            return cronEngine.list()
+          }
 
-    cronUpdate: tool({
-      description:
-        'Update an existing cron job. Only provided fields are changed.\n\n' +
-        'Use cronList first to get the job id.\n' +
-        'If you change the schedule, the next run time is automatically recomputed.',
-      inputSchema: z.object({
-        id: z.string().describe('Job id (from cronList)'),
-        name: z.string().optional().describe('New name'),
-        payload: z.string().optional().describe('New payload text'),
-        schedule: scheduleSchema.optional().describe('New schedule'),
-        enabled: z.boolean().optional().describe('Enable or disable the job'),
-        sessionTarget: z
-          .enum(['main', 'isolated'])
-          .optional()
-          .describe('New session target'),
-      }),
-      execute: async ({ id, name, payload, schedule, enabled }) => {
-        try {
-          await cronEngine.update(id, { name, payload, schedule, enabled })
-          return { ok: true }
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) }
-        }
-      },
-    }),
+          case 'add': {
+            if (!input.schedule) {
+              return { error: 'schedule is required' }
+            }
+            if (!input.name || !input.payload) {
+              return { error: 'name and payload are required for add' }
+            }
+            const id = await cronEngine.add({
+              name: input.name,
+              payload: input.payload,
+              schedule: input.schedule,
+              enabled: input.enabled,
+            })
+            return { id }
+          }
 
-    cronRemove: tool({
-      description: 'Remove a cron job permanently. Use cronList first to get the job id.',
-      inputSchema: z.object({
-        id: z.string().describe('Job id to remove'),
-      }),
-      execute: async ({ id }) => {
-        try {
-          await cronEngine.remove(id)
-          return { ok: true }
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) }
-        }
-      },
-    }),
+          case 'update': {
+            if (!input.id) return { error: 'id is required for update' }
+            try {
+              await cronEngine.update(input.id, {
+                name: input.name,
+                payload: input.payload,
+                schedule: input.schedule,
+                enabled: input.enabled,
+              })
+              return { ok: true }
+            } catch (err) {
+              return { error: err instanceof Error ? err.message : String(err) }
+            }
+          }
 
-    cronRunNow: tool({
-      description:
-        'Manually trigger a cron job immediately, bypassing its schedule.\n\n' +
-        "The job's payload will be injected as a system event and the scheduler will wake.\n" +
-        "This does not affect the job's normal schedule — the next scheduled run remains unchanged.",
-      inputSchema: z.object({
-        id: z.string().describe('Job id to trigger'),
-      }),
-      execute: async ({ id }) => {
-        try {
-          await cronEngine.runNow(id)
-          return { ok: true }
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) }
+          case 'remove': {
+            if (!input.id) return { error: 'id is required for remove' }
+            try {
+              await cronEngine.remove(input.id)
+              return { ok: true }
+            } catch (err) {
+              return { error: err instanceof Error ? err.message : String(err) }
+            }
+          }
+
+          case 'runNow': {
+            if (!input.id) return { error: 'id is required for runNow' }
+            try {
+              await cronEngine.runNow(input.id)
+              return { ok: true }
+            } catch (err) {
+              return { error: err instanceof Error ? err.message : String(err) }
+            }
+          }
         }
       },
     }),

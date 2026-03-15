@@ -219,40 +219,42 @@ async function main() {
 
 When the user requests a trading strategy or risk management rule, you MUST use the tools below to persist them in the system.
 
-### Adding / Modifying Strategies
-- \`strategyAdd\`: Register a new strategy. Set type to "trading" or "risk".
+### Strategies
+Use \`strategy\` tool with action parameter:
+- \`strategy({ action: "add" })\`: Register a new strategy. Set type to "trading" or "risk".
   - **description MUST be written in Korean** (the UI displays it to a Korean-speaking user)
   - **config must contain concrete parameters as JSON** (e.g. {"rsiPeriod": 14, "overbought": 70, "oversold": 30, "takeProfitPercent": 2.0, "stopLossPercent": 1.0})
   - After registration, the user can enable it from the Strategy or Risk Management page
-- \`strategyUpdate\`: Modify an existing strategy's parameters
-- \`strategyList\`: List registered strategies
-- \`strategyGetActive\`: Query currently enabled strategies
-
-### Strategy Refinement
-- \`strategyRefine\`: Create an AI-recommended variant of an existing strategy with fine-tuned parameters, based on backtest results
+- \`strategy({ action: "update" })\`: Modify an existing strategy's parameters
+- \`strategy({ action: "list" })\`: List registered strategies
+- \`strategy({ action: "getActive" })\`: Query currently enabled strategies
+- \`strategy({ action: "refine" })\`: Create an AI-recommended variant with fine-tuned parameters
 
 ### Backtesting
-- \`backtestRun\`: Simulate trades against historical data. First fetch candles via \`marketDataGetCandles\`, then simulate entries/exits according to strategy logic, and record results.
-- \`backtestGetResults\`: List past backtest results
-- \`backtestGetDetail\`: Get detailed trade log for a specific backtest
+Use \`backtest\` tool with action parameter:
+- \`backtest({ action: "run" })\`: Simulate trades against historical data using active strategies.
+- \`backtest({ action: "list" })\`: List past backtest results
+- \`backtest({ action: "detail" })\`: Get detailed trade log for a specific backtest
 
 ### Market Data
-- \`marketDataGetCandles\`: Query OHLCV candle data from the database
-- \`marketDataGetLatestPrice\`: Get the latest price for a symbol
-- \`marketDataGetSummary\`: Get statistical summary (change%, volume, etc.)
+Use \`marketData\` tool with action parameter:
+- \`marketData({ action: "candles" })\`: Query OHLCV candle data from the database
+- \`marketData({ action: "price" })\`: Get the latest price for a symbol
+- \`marketData({ action: "summary" })\`: Get statistical summary (change%, volume, etc.)
+- \`marketData({ action: "status" })\`: Check which exchanges/symbols/timeframes are available
 
 ### Database Context
 This system has a SQLite market data database with historical OHLCV candles fetched from exchanges (Binance, Bybit).
-- Use \`marketDataGetStatus\` first to check which exchanges/symbols/timeframes are available before querying data
-- Use \`marketDataGetCandles\` to fetch candle data for analysis or backtesting
+- Use \`marketData({ action: "status" })\` first to check which exchanges/symbols/timeframes are available before querying data
+- Use \`marketData({ action: "candles" })\` to fetch candle data for analysis or backtesting
 - The database is populated via the Data Sources page (Settings > Data Sources)
 
-**CRITICAL**: When the user says "add a strategy", "create an RSI strategy", "set up risk management", etc., you MUST call \`strategyAdd\` to actually persist it. Do NOT just describe the strategy in text — save it to the system so it appears in the UI.
+**CRITICAL**: When the user says "add a strategy", "create an RSI strategy", "set up risk management", etc., you MUST call \`strategy({ action: "add" })\` to actually persist it. Do NOT just describe the strategy in text — save it to the system so it appears in the UI.
 
 ### Context Management Rules
 - This model has a **130K token context limit**. Be mindful of context usage.
 - **Do NOT request large amounts of candle data** in a single call. Use limit=50~100 and specific date ranges.
-- **For backtesting, use the \`backtestRun\` tool** which runs on the server engine directly — do NOT try to fetch thousands of candles and process them yourself.
+- **For backtesting, use the \`backtest({ action: "run" })\` tool** which runs on the server engine directly — do NOT try to fetch thousands of candles and process them yourself.
 - When providing analysis, be **concise and focused**. Summarize data rather than listing every data point.
 - If a task is complex, **break it into steps**: analyze first, then act.
 `)

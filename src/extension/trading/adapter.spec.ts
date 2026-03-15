@@ -96,24 +96,24 @@ describe('resolveOne', () => {
   })
 })
 
-// ==================== createTradingTools: listAccounts ====================
+// ==================== createTradingTools: tradingQuery — accounts ====================
 
-describe('createTradingTools — listAccounts', () => {
+describe('createTradingTools — tradingQuery accounts', () => {
   it('returns summaries for all registered accounts', async () => {
     const mgr = makeManager(
       new MockTradingAccount({ id: 'acc1', provider: 'alpaca', label: 'Test' }),
     )
     const tools = createTradingTools(makeResolver(mgr))
-    const result = await (tools.listAccounts.execute as Function)({})
+    const result = await (tools.tradingQuery.execute as Function)({ action: 'accounts' })
     expect(Array.isArray(result)).toBe(true)
     expect(result[0].id).toBe('acc1')
     expect(result[0].provider).toBe('alpaca')
   })
 })
 
-// ==================== createTradingTools: searchContracts ====================
+// ==================== createTradingTools: tradingQuery — search ====================
 
-describe('createTradingTools — searchContracts', () => {
+describe('createTradingTools — tradingQuery search', () => {
   it('aggregates results from all accounts', async () => {
     const a1 = new MockTradingAccount({ id: 'acc1', provider: 'alpaca' })
     const a2 = new MockTradingAccount({ id: 'acc2', provider: 'ccxt' })
@@ -121,7 +121,7 @@ describe('createTradingTools — searchContracts', () => {
     a2.searchContracts.mockResolvedValue([{ contract: makeContract({ symbol: 'AAPL' }) }])
     const mgr = makeManager(a1, a2)
     const tools = createTradingTools(makeResolver(mgr))
-    const result = await (tools.searchContracts.execute as Function)({ pattern: 'AAPL' })
+    const result = await (tools.tradingQuery.execute as Function)({ action: 'search', pattern: 'AAPL' })
     expect(Array.isArray(result)).toBe(true)
     expect(result).toHaveLength(2)
     expect(result[0].source).toBe('acc1')
@@ -133,7 +133,7 @@ describe('createTradingTools — searchContracts', () => {
     a1.searchContracts.mockResolvedValue([])
     const mgr = makeManager(a1)
     const tools = createTradingTools(makeResolver(mgr))
-    const result = await (tools.searchContracts.execute as Function)({ pattern: 'ZZZZ' })
+    const result = await (tools.tradingQuery.execute as Function)({ action: 'search', pattern: 'ZZZZ' })
     expect(result.results).toEqual([])
     expect(result.message).toContain('No contracts found')
   })
@@ -141,7 +141,7 @@ describe('createTradingTools — searchContracts', () => {
   it('returns error when no accounts are registered', async () => {
     const mgr = new AccountManager()
     const tools = createTradingTools(makeResolver(mgr))
-    const result = await (tools.searchContracts.execute as Function)({ pattern: 'AAPL' })
+    const result = await (tools.tradingQuery.execute as Function)({ action: 'search', pattern: 'AAPL' })
     expect(result.error).toBeTruthy()
   })
 
@@ -152,16 +152,16 @@ describe('createTradingTools — searchContracts', () => {
     a2.searchContracts.mockResolvedValue([{ contract: makeContract({ symbol: 'BTC' }) }])
     const mgr = makeManager(a1, a2)
     const tools = createTradingTools(makeResolver(mgr))
-    const result = await (tools.searchContracts.execute as Function)({ pattern: 'BTC' })
+    const result = await (tools.tradingQuery.execute as Function)({ action: 'search', pattern: 'BTC' })
     expect(Array.isArray(result)).toBe(true)
     expect(result).toHaveLength(1)
     expect(result[0].source).toBe('acc2')
   })
 })
 
-// ==================== createTradingTools: getPortfolio ====================
+// ==================== createTradingTools: tradingQuery — portfolio ====================
 
-describe('createTradingTools — getPortfolio', () => {
+describe('createTradingTools — tradingQuery portfolio', () => {
   it('returns all positions when symbol is omitted', async () => {
     const acc = new MockTradingAccount({ id: 'acc1' })
     acc.setPositions([
@@ -170,7 +170,7 @@ describe('createTradingTools — getPortfolio', () => {
     ])
     const mgr = makeManager(acc)
     const tools = createTradingTools(makeResolver(mgr))
-    const result = await (tools.getPortfolio.execute as Function)({ source: 'acc1' })
+    const result = await (tools.tradingQuery.execute as Function)({ action: 'portfolio', source: 'acc1' })
     expect(Array.isArray(result)).toBe(true)
     expect(result).toHaveLength(2)
   })
@@ -183,7 +183,7 @@ describe('createTradingTools — getPortfolio', () => {
     ])
     const mgr = makeManager(acc)
     const tools = createTradingTools(makeResolver(mgr))
-    const result = await (tools.getPortfolio.execute as Function)({ source: 'acc1', symbol: 'AAPL' })
+    const result = await (tools.tradingQuery.execute as Function)({ action: 'portfolio', source: 'acc1', symbol: 'AAPL' })
     expect(Array.isArray(result)).toBe(true)
     expect(result).toHaveLength(1)
     expect(result[0].symbol).toBe('AAPL')

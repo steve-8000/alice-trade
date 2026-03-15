@@ -6,8 +6,7 @@ import { calculate } from './tools/calculate.tool';
  * Create thinking AI tools (cognition + utility, no data dependency)
  *
  * Tools:
- * - think: Record observations and analysis
- * - plan: Record action plans
+ * - think: Record observations, analysis, and action plans
  * - calculate: Safe mathematical expression evaluation
  * - reportWarning: Report anomalies or unexpected situations
  * - getConfirm: Request user confirmation before actions
@@ -15,68 +14,27 @@ import { calculate } from './tools/calculate.tool';
 export function createThinkingTools() {
   return {
     think: tool({
-      description: `
-Use this to analyze current market situation and your observations.
-Call this tool to:
-- Summarize what you observe from market data, positions, and account
-- Analyze what these observations mean
-- Identify key factors influencing your decision
-
-This is for analysis only. Use 'plan' tool separately to decide your next actions.
-      `.trim(),
+      description:
+        'Record your analysis, observations, and action plans. Use for reasoning about market data, strategies, and decisions.',
       inputSchema: z.object({
         observations: z
           .string()
-          .describe(
-            'What you currently observe from market data, positions, and account status',
-          ),
+          .describe('What you observe from data'),
         analysis: z
           .string()
-          .describe(
-            'Your analysis of the situation - what do these observations mean? What are the key factors?',
-          ),
-      }),
-      execute: async () => {
-        return {
-          status: 'acknowledged',
-          message:
-            'Your analysis has been recorded. Now use the plan tool to decide your next actions.',
-        };
-      },
-    }),
-
-    plan: tool({
-      description: `
-Use this to plan your next trading actions based on your analysis.
-Call this tool after using 'think' to:
-- List possible actions you could take
-- Decide which action to take and explain why
-- Outline the specific steps you will execute
-
-This commits you to a specific action plan before execution.
-      `.trim(),
-      inputSchema: z.object({
-        options: z
-          .array(z.string())
-          .describe(
-            'List of possible actions you could take (e.g., "Buy BTC", "Close ETH position", "Hold and wait")',
-          ),
-        decision: z
+          .optional()
+          .describe('What these observations mean'),
+        plan: z
           .string()
-          .describe(
-            'Which option you choose and WHY - explain your reasoning for this specific choice',
-          ),
-        steps: z
-          .array(z.string())
-          .describe(
-            'Specific steps you will execute (e.g., "1. placeOrder BTC buy $1000", "2. Set stop loss at $66000")',
-          ),
+          .optional()
+          .describe('Planned actions based on analysis'),
       }),
-      execute: async () => {
+      execute: async ({ observations, analysis, plan }) => {
         return {
-          status: 'acknowledged',
-          message:
-            'Your plan has been recorded. You may now execute the planned actions.',
+          recorded: true,
+          observations,
+          analysis: analysis || null,
+          plan: plan || null,
         };
       },
     }),

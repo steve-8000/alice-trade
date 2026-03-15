@@ -5,167 +5,161 @@ import type { BacktestEngine } from './backtest-engine.js'
 
 export function createStrategyTools(store: StrategyStore, backtestEngine?: BacktestEngine) {
   return {
-    strategyAdd: tool({
-      description: 'Add a new trading strategy or risk management strategy. The description MUST be written in Korean.',
+    strategy: tool({
+      description: 'Manage trading/risk strategies: add, list, update, delete, refine, or get active strategies.',
       inputSchema: z.object({
-        name: z.string().describe('Strategy name (English)'),
-        description: z.string().describe('Detailed strategy description (MUST be in Korean)'),
-        type: z.enum(['trading', 'risk']).describe('Strategy type: "trading" or "risk"'),
-        config: z.record(z.string(), z.unknown()).describe('Strategy parameters as JSON (e.g. {"rsiPeriod": 14, "overbought": 70})'),
+        action: z.enum(['add', 'list', 'update', 'delete', 'refine', 'getActive']).describe(
+          'add: create new | list: show all | update: modify existing | delete: remove | refine: AI variant | getActive: enabled strategies',
+        ),
+        id: z.string().optional().describe('Strategy ID (required for update, delete, refine)'),
+        name: z.string().optional().describe('Strategy name (required for add, refine)'),
+        description: z.string().optional().describe('Strategy description — MUST be in Korean (required for add)'),
+        type: z.enum(['trading', 'risk', 'all']).optional().describe('Strategy type (required for add; filter for list)'),
+        config: z.record(z.string(), z.unknown()).optional().describe('Strategy parameters as JSON'),
+        parentId: z.string().optional().describe('Parent strategy ID (for refine — use id field instead)'),
+        reason: z.string().optional().describe('Reason for refinement (Korean, required for refine)'),
       }),
       execute: async (input) => {
-        const id = `${input.type}-${Date.now().toString(36)}`
-        const now = new Date().toISOString()
-        store.upsertStrategy({
-          id, name: input.name, description: input.description,
-          type: input.type, config: input.config, enabled: false,
-          createdAt: now, updatedAt: now, source: 'ai', parentId: null,
-        })
-        return { success: true, id, message: `Strategy "${input.name}" added. Enable it from the UI.` }
-      },
-    }),
-
-    strategyList: tool({
-      description: 'List registered strategies.',
-      inputSchema: z.object({
-        type: z.enum(['trading', 'risk', 'all']).optional().default('all').describe('Type filter'),
-      }),
-      execute: async (input) => {
-        const type = input.type === 'all' ? undefined : input.type
-        return { strategies: store.getStrategies(type) }
-      },
-    }),
-
-    strategyUpdate: tool({
-      description: 'Update an existing strategy. Description MUST be in Korean.',
-      inputSchema: z.object({
-        id: z.string().describe('Strategy ID to update'),
-        name: z.string().optional().describe('New name'),
-        description: z.string().optional().describe('New description (Korean)'),
-        config: z.record(z.string(), z.unknown()).optional().describe('New parameters'),
-      }),
-      execute: async (input) => {
-        const existing = store.getStrategy(input.id)
-        if (!existing) return { error: `Strategy "${input.id}" not found.` }
-        store.upsertStrategy({
-          ...existing,
-          name: input.name ?? existing.name,
-          description: input.description ?? existing.description,
-          config: input.config ?? existing.config,
-          updatedAt: new Date().toISOString(),
-        })
-        return { success: true, message: `Strategy "${existing.name}" updated.` }
-      },
-    }),
-
-    strategyDelete: tool({
-      description: 'Delete a strategy.',
-      inputSchema: z.object({ id: z.string().describe('Strategy ID') }),
-      execute: async (input) => {
-        store.deleteStrategy(input.id)
-        return { success: true, message: 'Strategy deleted.' }
-      },
-    }),
-
-    strategyRefine: tool({
-      description: 'Create an AI-recommended variant of an existing strategy with fine-tuned parameters based on backtest results. Description MUST be in Korean.',
-      inputSchema: z.object({
-        parentId: z.string().describe('Original strategy ID'),
-        name: z.string().describe('New strategy name'),
-        description: z.string().describe('Description of adjustments (Korean)'),
-        config: z.record(z.string(), z.unknown()).describe('Adjusted parameters'),
-        reason: z.string().describe('Reason for adjustment (Korean)'),
-      }),
-      execute: async (input) => {
-        const parent = store.getStrategy(input.parentId)
-        if (!parent) return { error: `Parent strategy "${input.parentId}" not found.` }
-        const id = `${parent.type}-refined-${Date.now().toString(36)}`
-        const now = new Date().toISOString()
-        store.upsertStrategy({
-          id, name: input.name,
-          description: `${input.description}\n\n📊 Reason: ${input.reason}\n🔗 Based on: ${parent.name}`,
-          type: parent.type, config: input.config, enabled: false,
-          createdAt: now, updatedAt: now, source: 'ai', parentId: input.parentId,
-        })
-        return { success: true, id, message: `AI-refined strategy "${input.name}" added.` }
-      },
-    }),
-
-    strategyGetActive: tool({
-      description: 'Get currently enabled trading and risk management strategies.',
-      inputSchema: z.object({}),
-      execute: async () => ({
-        tradingStrategies: store.getEnabledStrategies('trading'),
-        riskStrategies: store.getEnabledStrategies('risk'),
-      }),
-    }),
-
-    backtestGetResults: tool({
-      description: 'List past backtest results.',
-      inputSchema: z.object({}),
-      execute: async () => ({ results: store.getBacktestResults() }),
-    }),
-
-    backtestGetDetail: tool({
-      description: 'Get detailed results and trade log for a specific backtest.',
-      inputSchema: z.object({ id: z.string().describe('Backtest ID') }),
-      execute: async (input) => {
-        const result = store.getBacktestResult(input.id)
-        if (!result) return { error: 'Backtest not found.' }
-        const trades = store.getBacktestTrades(input.id)
-        return { result, trades }
-      },
-    }),
-
-    backtestRun: tool({
-      description: 'Run a backtest using the code-based engine. Uses currently active trading strategies and risk management rules to simulate trades against historical candle data from the database.',
-      inputSchema: z.object({
-        name: z.string().describe('Backtest name'),
-        exchange: z.string().describe('Exchange (e.g. "binance")'),
-        symbol: z.string().describe('Symbol to test (e.g. "BTC/USDT")'),
-        timeframe: z.string().default('1h').describe('Candle timeframe'),
-        startDate: z.string().describe('Start date (ISO)'),
-        endDate: z.string().describe('End date (ISO)'),
-        initialEquity: z.number().optional().default(10000).describe('Initial equity for simulation (default $10,000)'),
-      }),
-      execute: async (input) => {
-        if (!backtestEngine) return { error: 'Backtest engine not available' }
-        try {
-          const btId = await backtestEngine.run({
-            name: input.name,
-            exchange: input.exchange,
-            symbol: input.symbol,
-            timeframe: input.timeframe,
-            startDate: input.startDate,
-            endDate: input.endDate,
-            initialEquity: input.initialEquity,
-          })
-          const result = store.getBacktestResult(btId)
-          if (!result) return { error: 'Backtest failed' }
-          if (result.status === 'error') return { error: result.error, id: btId }
-
-          const trades = store.getBacktestTrades(btId)
-          return {
-            success: true,
-            id: btId,
-            summary: {
-              totalPnl: result.totalPnl,
-              totalTrades: result.totalTrades,
-              wins: result.wins,
-              losses: result.losses,
-              winRate: result.winRate !== null ? (result.winRate * 100).toFixed(1) + '%' : null,
-            },
-            strategies: result.strategyIds,
-            riskRules: result.riskIds,
-            tradeCount: trades.length,
-            topTrades: trades.slice(0, 5).map(t => ({
-              symbol: t.symbol, side: t.side,
-              entry: t.entryPrice, exit: t.exitPrice,
-              pnl: t.pnl, time: t.entryTime,
-            })),
+        switch (input.action) {
+          case 'add': {
+            if (!input.name || !input.description || !input.type || input.type === 'all' || !input.config) {
+              return { error: 'name, description, type (trading|risk), and config are required for add' }
+            }
+            const id = `${input.type}-${Date.now().toString(36)}`
+            const now = new Date().toISOString()
+            store.upsertStrategy({
+              id, name: input.name, description: input.description,
+              type: input.type, config: input.config, enabled: false,
+              createdAt: now, updatedAt: now, source: 'ai', parentId: null,
+            })
+            return { success: true, id, message: `Strategy "${input.name}" added. Enable it from the UI.` }
           }
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) }
+
+          case 'list': {
+            const type = (!input.type || input.type === 'all') ? undefined : input.type
+            return { strategies: store.getStrategies(type) }
+          }
+
+          case 'update': {
+            if (!input.id) return { error: 'id is required for update' }
+            const existing = store.getStrategy(input.id)
+            if (!existing) return { error: `Strategy "${input.id}" not found.` }
+            store.upsertStrategy({
+              ...existing,
+              name: input.name ?? existing.name,
+              description: input.description ?? existing.description,
+              config: input.config ?? existing.config,
+              updatedAt: new Date().toISOString(),
+            })
+            return { success: true, message: `Strategy "${existing.name}" updated.` }
+          }
+
+          case 'delete': {
+            if (!input.id) return { error: 'id is required for delete' }
+            store.deleteStrategy(input.id)
+            return { success: true, message: 'Strategy deleted.' }
+          }
+
+          case 'refine': {
+            const parentId = input.id || input.parentId
+            if (!parentId || !input.name || !input.description || !input.config || !input.reason) {
+              return { error: 'id (parent), name, description, config, and reason are required for refine' }
+            }
+            const parent = store.getStrategy(parentId)
+            if (!parent) return { error: `Parent strategy "${parentId}" not found.` }
+            const id = `${parent.type}-refined-${Date.now().toString(36)}`
+            const now = new Date().toISOString()
+            store.upsertStrategy({
+              id, name: input.name,
+              description: `${input.description}\n\n📊 Reason: ${input.reason}\n🔗 Based on: ${parent.name}`,
+              type: parent.type, config: input.config, enabled: false,
+              createdAt: now, updatedAt: now, source: 'ai', parentId,
+            })
+            return { success: true, id, message: `AI-refined strategy "${input.name}" added.` }
+          }
+
+          case 'getActive': {
+            return {
+              tradingStrategies: store.getEnabledStrategies('trading'),
+              riskStrategies: store.getEnabledStrategies('risk'),
+            }
+          }
+        }
+      },
+    }),
+
+    backtest: tool({
+      description: 'Run or query backtests: run a new test, list results, or get detail.',
+      inputSchema: z.object({
+        action: z.enum(['run', 'list', 'detail']).describe(
+          'run: execute backtest | list: past results | detail: specific backtest detail',
+        ),
+        id: z.string().optional().describe('Backtest ID (required for detail)'),
+        name: z.string().optional().describe('Backtest name (required for run)'),
+        exchange: z.string().optional().describe('Exchange, e.g. "binance" (required for run)'),
+        symbol: z.string().optional().describe('Symbol, e.g. "BTC/USDT" (required for run)'),
+        timeframe: z.string().optional().default('1h').describe('Candle timeframe'),
+        startDate: z.string().optional().describe('Start date ISO (required for run)'),
+        endDate: z.string().optional().describe('End date ISO (required for run)'),
+        initialEquity: z.number().optional().default(10000).describe('Initial equity (default $10,000)'),
+      }),
+      execute: async (input) => {
+        switch (input.action) {
+          case 'list': {
+            return { results: store.getBacktestResults() }
+          }
+
+          case 'detail': {
+            if (!input.id) return { error: 'id is required for detail' }
+            const result = store.getBacktestResult(input.id)
+            if (!result) return { error: 'Backtest not found.' }
+            const trades = store.getBacktestTrades(input.id)
+            return { result, trades }
+          }
+
+          case 'run': {
+            if (!backtestEngine) return { error: 'Backtest engine not available' }
+            if (!input.name || !input.exchange || !input.symbol || !input.startDate || !input.endDate) {
+              return { error: 'name, exchange, symbol, startDate, and endDate are required for run' }
+            }
+            try {
+              const btId = await backtestEngine.run({
+                name: input.name,
+                exchange: input.exchange,
+                symbol: input.symbol,
+                timeframe: input.timeframe || '1h',
+                startDate: input.startDate,
+                endDate: input.endDate,
+                initialEquity: input.initialEquity,
+              })
+              const result = store.getBacktestResult(btId)
+              if (!result) return { error: 'Backtest failed' }
+              if (result.status === 'error') return { error: result.error, id: btId }
+
+              const trades = store.getBacktestTrades(btId)
+              return {
+                success: true,
+                id: btId,
+                summary: {
+                  totalPnl: result.totalPnl,
+                  totalTrades: result.totalTrades,
+                  wins: result.wins,
+                  losses: result.losses,
+                  winRate: result.winRate !== null ? (result.winRate * 100).toFixed(1) + '%' : null,
+                },
+                strategies: result.strategyIds,
+                riskRules: result.riskIds,
+                tradeCount: trades.length,
+                topTrades: trades.slice(0, 5).map(t => ({
+                  symbol: t.symbol, side: t.side,
+                  entry: t.entryPrice, exit: t.exitPrice,
+                  pnl: t.pnl, time: t.entryTime,
+                })),
+              }
+            } catch (err) {
+              return { error: err instanceof Error ? err.message : String(err) }
+            }
+          }
         }
       },
     }),
