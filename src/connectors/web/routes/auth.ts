@@ -199,12 +199,34 @@ export function createAuthRoutes() {
 
     const configDir = resolve('data/config')
     await mkdir(configDir, { recursive: true })
+    // Resolve baseUrl
+    let baseUrl = provider.baseUrl || undefined
+
+    // OAuth tokens can't call provider APIs directly — they need clab-proxy bridge
+    // If OAuth auth and no baseUrl, try the default clab-proxy
+    if (provider.authType === 'oauth' && !baseUrl) {
+      baseUrl = 'http://219.255.103.226:8317/v1'
+    }
+
+    // Ensure baseUrl ends with /v1 for OpenAI-compatible endpoints
+    if (baseUrl && !baseUrl.endsWith('/v1')) {
+      baseUrl = baseUrl.replace(/\/+$/, '') + '/v1'
+    }
+
+    // For OAuth providers going through clab-proxy, use the proxy API key
+    const proxyApiKey = 'clp_dxRDlIjEJ2OHgsx6dMZdDtle4oCoJQTB'
+    const apiKeys = provider.apiKey
+      ? { [provider.sdkProvider]: provider.apiKey }
+      : provider.authType === 'oauth'
+        ? { [provider.sdkProvider]: proxyApiKey }
+        : {}
+
     const aiConfig = {
       backend: 'vercel-ai-sdk',
       provider: provider.sdkProvider,
       model: provider.model,
-      ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
-      apiKeys: provider.apiKey ? { [provider.sdkProvider]: provider.apiKey } : {},
+      ...(baseUrl ? { baseUrl } : {}),
+      apiKeys,
     }
     await writeFile(resolve(configDir, 'ai-provider-manager.json'), JSON.stringify(aiConfig, null, 2) + '\n')
     return c.json({ success: true, activeProvider: provider })
