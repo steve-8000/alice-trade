@@ -16,7 +16,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [newMsgCount, setNewMsgCount] = useState(0)
 
-  const { messages, streamSegments, isWaiting, send, abort } = useChat({
+  const { messages, streamSegments, isWaiting, send, abort, clearSession } = useChat({
     channel: activeChannel,
     onSSEStatus: activeChannel === 'default' ? onSSEStatus : undefined,
   })
@@ -166,7 +166,18 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
       <div className="flex-1 min-h-0 relative">
         {/* # icon button — fixed in top-right corner, always visible on main channel */}
         {!isOnSubChannel && (
-          <div className="absolute top-3 right-5 z-20" ref={popoverRef}>
+          <div className="absolute top-3 right-5 z-20 flex items-center gap-1" ref={popoverRef}>
+            {/* Clear session button */}
+            <button
+              onClick={clearSession}
+              className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted/40 hover:text-text-muted hover:bg-bg-secondary/80 transition-all"
+              aria-label="Clear session"
+              title="Clear session"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+              </svg>
+            </button>
             <button
               onClick={() => setPopoverOpen((v) => !v)}
               className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted/40 hover:text-text-muted hover:bg-bg-secondary/80 transition-all"

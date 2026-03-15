@@ -102,6 +102,7 @@ export interface UseChatReturn {
   isWaiting: boolean
   send: (text: string) => Promise<void>
   abort: () => void
+  clearSession: () => Promise<void>
 }
 
 export function useChat({ channel, onSSEStatus }: UseChatOptions): UseChatReturn {
@@ -113,13 +114,17 @@ export function useChat({ channel, onSSEStatus }: UseChatOptions): UseChatReturn
   const channelRef = useRef(channel)
   channelRef.current = channel
 
-  // Clear session and start fresh when channel changes (page load)
+  // Load chat history when channel changes
   useEffect(() => {
     const ch = channel === 'default' ? undefined : channel
-    // Clear server-side session first, then start fresh (no history loaded)
-    fetch(`/api/chat/session${ch ? `?channel=${encodeURIComponent(ch)}` : ''}`, { method: 'DELETE' })
-      .catch(() => {})
-    setMessages([])
+    chatApi.history(100, ch).then(({ messages: msgs }) => {
+      setMessages(msgs.map((m): DisplayItem => {
+        if (m.kind === 'text' && m.metadata?.kind === 'notification') {
+          return { ...m, role: 'notification', _id: nextId.current++ }
+        }
+        return { ...m, _id: nextId.current++ }
+      }))
+    }).catch(() => {})
   }, [channel])
 
   // SSE for push notifications (heartbeat, cron, multi-tab sync)
@@ -219,5 +224,12 @@ export function useChat({ channel, onSSEStatus }: UseChatOptions): UseChatReturn
 
   const abortFn = useCallback(() => { abortRef.current?.abort() }, [])
 
-  return { messages, streamSegments, isWaiting, send, abort: abortFn }
+  const clearSession = useCallback(async () => {
+    const ch = channelRef.current === 'default' ? undefined : channelRef.current
+    await fetch(`/api/chat/session${ch ? `?channel=${encodeURIComponent(ch)}` : ''}`, { method: 'DELETE' }).catch(() => {})
+    setMessages([])
+    setStreamSegments([])
+  }, [])
+
+  return { messages, streamSegments, isWaiting, send, abort: abortFn, clearSession }
 }

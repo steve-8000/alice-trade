@@ -20,9 +20,27 @@ interface ChatDeps {
   sseByChannel: Map<string, Map<string, SSEClient>>
 }
 
+const SESSION_IDLE_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
+const lastActivity = new Map<string, number>()
+
 /** Chat routes: POST /, GET /history, GET /events (SSE) */
 export function createChatRoutes({ ctx, sessions, sseByChannel }: ChatDeps) {
   const app = new Hono()
+
+  // Auto-clear idle sessions every 5 minutes
+  setInterval(async () => {
+    const now = Date.now()
+    for (const [channelId, lastTime] of lastActivity) {
+      if (now - lastTime > SESSION_IDLE_TIMEOUT_MS) {
+        const session = sessions.get(channelId)
+        if (session) {
+          await session.clear()
+          console.log(`session: auto-cleared idle channel "${channelId}" (inactive ${Math.round((now - lastTime) / 60000)}min)`)
+        }
+        lastActivity.delete(channelId)
+      }
+    }
+  }, 5 * 60 * 1000)
 
   app.post('/', async (c) => {
     const body = await c.req.json() as { message?: string; channelId?: string }
@@ -32,6 +50,8 @@ export function createChatRoutes({ ctx, sessions, sseByChannel }: ChatDeps) {
     const channelId = body.channelId ?? 'default'
     const session = sessions.get(channelId)
     if (!session) return c.json({ error: 'channel not found' }, 404)
+
+    lastActivity.set(channelId, Date.now())
 
     // Build AskOptions from channel config (if not default)
     const opts: AskOptions = {
