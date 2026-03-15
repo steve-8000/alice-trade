@@ -353,6 +353,7 @@ export default function AITradingCenterPage() {
                         <span>{bt.symbols.join(', ')}</span>
                         <span>{bt.timeframe}</span>
                         <span>{bt.startDate} ~ {bt.endDate}</span>
+                        <span>테스트: {new Date(bt.createdAt).toLocaleString('ko')}</span>
                       </div>
 
                       {bt.status === 'completed' && bt.totalPnl != null && (
