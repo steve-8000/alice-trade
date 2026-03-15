@@ -50,7 +50,7 @@ function detectCustomMode(provider: string, model: string): boolean {
 interface RegisteredProvider {
   id: string
   name: string
-  sdkProvider: 'anthropic' | 'openai' | 'google'
+  sdkProvider: string  // 'anthropic' | 'openai' | 'google' or custom
   model: string
   authType: 'oauth' | 'apikey'
   apiKey?: string
@@ -85,13 +85,14 @@ function ProviderCard({ provider, isActive, onActivate, onDelete }: {
     openai: 'border-[#10a37f]/40 bg-[#10a37f]/[0.06]',
     google: 'border-[#4285f4]/40 bg-[#4285f4]/[0.06]',
   }
+  const defaultColor = 'border-accent/40 bg-accent/[0.06]'
 
   return (
     <div
       onClick={onActivate}
       className={`relative rounded-xl border px-4 py-3 cursor-pointer transition-all min-w-[160px] ${
         isActive
-          ? (providerColors[provider.sdkProvider] || 'border-accent/40 bg-accent/[0.06]')
+          ? (providerColors[provider.sdkProvider] || defaultColor)
           : 'border-border hover:border-text-muted/30 bg-bg-secondary/50'
       }`}
     >
@@ -130,9 +131,10 @@ function ProviderCard({ provider, isActive, onActivate, onDelete }: {
 function AddProviderForm({ onAdded }: { onAdded: () => void }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
-  const [sdkProvider, setSdkProvider] = useState<'anthropic' | 'openai' | 'google'>('anthropic')
+  const [sdkProvider, setSdkProvider] = useState('anthropic')
   const [model, setModel] = useState('')
   const [authType, setAuthType] = useState<'oauth' | 'apikey'>('oauth')
+  const [sdkFormat, setSdkFormat] = useState('openai') // for custom: which API format
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [saving, setSaving] = useState(false)
@@ -167,19 +169,25 @@ function AddProviderForm({ onAdded }: { onAdded: () => void }) {
     if (open) fetchModels(sdkProvider, baseUrl || undefined, apiKey || undefined)
   }, [open, sdkProvider])
 
-  const handleProviderChange = (newProvider: 'anthropic' | 'openai' | 'google') => {
+  const handleProviderChange = (newProvider: string) => {
     setSdkProvider(newProvider)
     setModel('')
     setAvailableModels([])
-    const defaultNames: Record<string, string> = { anthropic: 'Claude', openai: 'ChatGPT', google: 'Gemini' }
-    if (!name) setName(defaultNames[newProvider] || '')
+    if (newProvider === 'custom') {
+      setAuthType('apikey')
+      setSdkFormat('openai')
+      if (!name) setName('')
+    } else {
+      const defaultNames: Record<string, string> = { anthropic: 'Claude', openai: 'ChatGPT', google: 'Gemini' }
+      if (!name) setName(defaultNames[newProvider] || '')
+    }
   }
 
   const handleBaseUrlChange = (url: string) => {
     setBaseUrl(url)
-    if (url && authType === 'apikey') {
-      // Re-fetch from proxy
-      fetchModels(sdkProvider, url, apiKey || undefined)
+    if (url) {
+      const provider = sdkProvider === 'custom' ? sdkFormat : sdkProvider
+      fetchModels(provider, url, apiKey || undefined)
     }
   }
 
@@ -187,10 +195,11 @@ function AddProviderForm({ onAdded }: { onAdded: () => void }) {
     if (!name.trim() || !model.trim()) return
     setSaving(true)
     try {
+      const effectiveSdkProvider = sdkProvider === 'custom' ? sdkFormat : sdkProvider
       const provider: RegisteredProvider = {
-        id: `${sdkProvider}-${Date.now().toString(36)}`,
+        id: `${effectiveSdkProvider}-${Date.now().toString(36)}`,
         name: name.trim(),
-        sdkProvider,
+        sdkProvider: effectiveSdkProvider,
         model: model.trim(),
         authType,
         ...(authType === 'apikey' && apiKey ? { apiKey } : {}),
@@ -233,13 +242,23 @@ function AddProviderForm({ onAdded }: { onAdded: () => void }) {
         <Field label="Name">
           <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Claude (Browser)" />
         </Field>
-        <Field label="SDK Provider">
-          <select className={inputClass} value={sdkProvider} onChange={(e) => handleProviderChange(e.target.value as 'anthropic' | 'openai' | 'google')}>
-            <option value="anthropic">Anthropic</option>
-            <option value="openai">OpenAI</option>
-            <option value="google">Google</option>
+        <Field label="Provider">
+          <select className={inputClass} value={sdkProvider} onChange={(e) => handleProviderChange(e.target.value)}>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI (ChatGPT)</option>
+            <option value="google">Google (Gemini)</option>
+            <option value="custom">Custom / Proxy</option>
           </select>
         </Field>
+        {sdkProvider === 'custom' && (
+          <Field label="API Format">
+            <select className={inputClass} value={sdkFormat} onChange={(e) => setSdkFormat(e.target.value)}>
+              <option value="openai">OpenAI Compatible</option>
+              <option value="anthropic">Anthropic Compatible</option>
+              <option value="google">Google Compatible</option>
+            </select>
+          </Field>
+        )}
         <Field label="Model">
           {loadingModels ? (
             <div className={`${inputClass} flex items-center text-text-muted`}>Loading models...</div>
@@ -255,19 +274,21 @@ function AddProviderForm({ onAdded }: { onAdded: () => void }) {
             <input className={`${inputClass} mt-1.5`} value="" onChange={(e) => setModel(e.target.value)} placeholder="Enter custom model ID" />
           )}
         </Field>
-        <Field label="Auth Type">
-          <select className={inputClass} value={authType} onChange={(e) => setAuthType(e.target.value as 'oauth' | 'apikey')}>
-            <option value="oauth">Browser Login (OAuth)</option>
-            <option value="apikey">API Key</option>
-          </select>
-        </Field>
-        {authType === 'apikey' && (
+        {sdkProvider !== 'custom' && (
+          <Field label="Auth Type">
+            <select className={inputClass} value={authType} onChange={(e) => setAuthType(e.target.value as 'oauth' | 'apikey')}>
+              <option value="oauth">Browser Login (OAuth)</option>
+              <option value="apikey">API Key</option>
+            </select>
+          </Field>
+        )}
+        {(authType === 'apikey' || sdkProvider === 'custom') && (
           <>
             <Field label="API Key">
-              <input className={inputClass} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." />
+              <input className={inputClass} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-... or clp_..." />
             </Field>
             <Field label="Base URL">
-              <input className={inputClass} value={baseUrl} onChange={(e) => handleBaseUrlChange(e.target.value)} placeholder="Leave empty for official API" />
+              <input className={inputClass} value={baseUrl} onChange={(e) => handleBaseUrlChange(e.target.value)} placeholder={sdkProvider === 'custom' ? 'http://your-proxy:8317/v1' : 'Leave empty for official API'} />
             </Field>
           </>
         )}

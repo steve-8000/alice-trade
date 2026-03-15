@@ -6,7 +6,7 @@ const PROVIDERS_FILE = resolve('data/config/ai-providers.json')
 export interface RegisteredProvider {
   id: string
   name: string
-  sdkProvider: 'anthropic' | 'openai' | 'google'
+  sdkProvider: string  // 'anthropic' | 'openai' | 'google' or custom
   model: string
   authType: 'oauth' | 'apikey'
   apiKey?: string
