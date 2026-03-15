@@ -15,7 +15,8 @@ export function createStrategyTools(store: StrategyStore, backtestEngine?: Backt
         name: z.string().optional().describe('Strategy name (required for add, refine)'),
         description: z.string().optional().describe('Strategy description — MUST be in Korean (required for add)'),
         type: z.enum(['trading', 'risk', 'all']).optional().describe('Strategy type (required for add; filter for list)'),
-        config: z.record(z.string(), z.unknown()).optional().describe('Strategy parameters as JSON'),
+        config: z.record(z.string(), z.unknown()).optional().describe('Strategy parameters as JSON (do NOT put enabled here)'),
+        enabled: z.boolean().optional().describe('Enable or disable a strategy (for update action)'),
         parentId: z.string().optional().describe('Parent strategy ID (for refine — use id field instead)'),
         reason: z.string().optional().describe('Reason for refinement (Korean, required for refine)'),
       }),
@@ -51,14 +52,17 @@ export function createStrategyTools(store: StrategyStore, backtestEngine?: Backt
             const mergedConfig = inputCfg
               ? { ...existing.config, ...inputCfg }
               : existing.config
+            // Handle enabled toggle via DB column, not config
+            const newEnabled = input.enabled !== undefined ? input.enabled : existing.enabled
             store.upsertStrategy({
               ...existing,
               name: input.name ?? existing.name,
               description: input.description ?? existing.description,
               config: mergedConfig,
+              enabled: newEnabled,
               updatedAt: new Date().toISOString(),
             })
-            return { success: true, message: `Strategy "${existing.name}" updated.` }
+            return { success: true, message: `Strategy "${existing.name}" updated.${input.enabled !== undefined ? ` enabled=${newEnabled}` : ''}` }
           }
 
           case 'delete': {
