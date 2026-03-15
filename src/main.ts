@@ -236,6 +236,13 @@ The engine auto-detects indicators from config keys. Include ANY of these to act
 **General:** cooldownBars(0), allowLong(true), allowShort(true), minSignalStrength(auto)
 **Risk:** stopPct, takePct, dailyLossLimitPct, maxConsecutiveLosses, maxOpenPositions, riskPerTradePct
 Multiple indicators = AND filter (majority voting). Tune by changing these numeric values.
+**TUNING RULES**: To get DIFFERENT backtest results you MUST change numeric values. Examples:
+- Tighten entry: increase obLevel(53→60), decrease osLevel(-53→-60), add cooldownBars(0→8)
+- Add RSI filter: set rsiPeriod(14), rsiOverbought(65), rsiOversold(35)
+- Add EMA trend: set fastEma(9), slowEma(21) — only enters when fast>slow
+- Add Stoch filter: set stochLen(14), stochOverbought(75), stochOversold(25)
+- Use customFilters for ADX trend strength: [{"indicator":"adx","period":14,"operator":"above","value":25,"role":"longFilter"}]
+- Each test MUST change at least 2-3 numeric params from the previous test. Do NOT just change text descriptions.
 
 Available customFilter indicators: close, high, low, volume, sma, ema, rsi, atr, vwap, williamsR, cci, adx, roc, momentum, obv, mfi, psar, ichimoku_tenkan, ichimoku_kijun, donchian_upper, donchian_lower, keltner_upper, keltner_lower, stddev, cmf, highest, lowest, dema, tema, wma, hma, trix, chop, aroon_up, aroon_down, ultimate_osc, ppo, dpo, mass_index, stoch_k, stoch_d, macd_line, macd_signal, macd_histogram, bb_upper, bb_lower, bb_middle, wt1, wt2, sma_volume
 Operators: above, below, crossAbove, crossBelow
