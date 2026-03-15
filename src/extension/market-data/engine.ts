@@ -58,43 +58,55 @@ export class MarketDataEngine {
     return total
   }
 
-  /** Start WebSocket streaming for a connection */
-  async startWs(conn: ConnectionConfig) {
+  /** Start live polling for a connection (fetches latest candles periodically) */
+  async startLive(conn: ConnectionConfig) {
     const key = conn.id
     if (this.wsLoops.has(key)) return
 
     const ac = new AbortController()
     this.wsLoops.set(key, ac)
 
-    const ex = this.getExchange(conn.exchange)
-
     for (const symbol of conn.symbols) {
       for (const tf of conn.timeframes) {
-        this.runWsLoop(ex, conn.exchange, symbol, tf, ac.signal)
+        this.runPollLoop(conn.exchange, symbol, tf, ac.signal)
       }
     }
   }
 
-  private async runWsLoop(ex: ccxt.Exchange, exchange: string, symbol: string, timeframe: string, signal: AbortSignal) {
+  private async runPollLoop(exchange: string, symbol: string, timeframe: string, signal: AbortSignal) {
+    const tfMs = TIMEFRAME_MS[timeframe] || 60_000
+    const interval = Math.max(tfMs, 60_000) // poll at least every minute
     while (!signal.aborted) {
+      await new Promise(r => setTimeout(r, interval))
+      if (signal.aborted) break
       try {
-        const ohlcv = await (ex as any).watchOHLCV(symbol, timeframe)
-        if (signal.aborted) break
-        const candles: Candle[] = ohlcv.map(([ts, o, h, l, c, v]: number[]) => ({
-          exchange, symbol, timeframe,
-          timestamp: ts, open: o, high: h, low: l, close: c, volume: v,
-        }))
-        this.store.insertCandles(candles)
+        const ex = this.getExchange(exchange)
+        const since = Date.now() - tfMs * 5 // overlap by 5 candles to catch updates
+        const ohlcv = await ex.fetchOHLCV(symbol, timeframe, since, 10)
+        if (ohlcv.length) {
+          const candles: Candle[] = ohlcv.map(([ts, o, h, l, c, v]) => ({
+            exchange, symbol, timeframe,
+            timestamp: ts!, open: o!, high: h!, low: l!, close: c!, volume: v!,
+          }))
+          this.store.insertCandles(candles)
+          this.store.updateConnectionStatus(
+            this.findConnId(exchange) || exchange + '-ws',
+            'connected'
+          )
+        }
       } catch (err) {
         if (signal.aborted) break
-        console.error(`market-data: ws error ${exchange}/${symbol}/${timeframe}:`, err instanceof Error ? err.message : err)
-        await new Promise(r => setTimeout(r, 5000))
+        console.error(`market-data: poll error ${exchange}/${symbol}/${timeframe}:`, err instanceof Error ? err.message : err)
       }
     }
+  }
+
+  private findConnId(exchange: string): string | undefined {
+    return this.store.getConnections().find(c => c.exchange === exchange)?.id
   }
 
   /** Stop WebSocket for a connection */
-  stopWs(connId: string) {
+  stopLive(connId: string) {
     const ac = this.wsLoops.get(connId)
     if (ac) {
       ac.abort()
@@ -121,7 +133,7 @@ export class MarketDataEngine {
         this.store.updateConnectionStatus(conn.id, 'connected')
       }
 
-      await this.startWs(conn)
+      await this.startLive(conn)
       console.log(`market-data: ${conn.exchange} connected (ws streaming)`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -132,7 +144,7 @@ export class MarketDataEngine {
 
   /** Stop a connection */
   stopConnection(connId: string) {
-    this.stopWs(connId)
+    this.stopLive(connId)
     this.store.updateConnectionStatus(connId, 'disconnected')
   }
 
@@ -147,7 +159,7 @@ export class MarketDataEngine {
   /** Stop all */
   stopAll() {
     for (const [id] of this.wsLoops) {
-      this.stopWs(id)
+      this.stopLive(id)
     }
     for (const [, ex] of this.exchanges) {
       try { (ex as any).close?.() } catch { /* ignore */ }
