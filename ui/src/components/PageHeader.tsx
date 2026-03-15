@@ -8,7 +8,7 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, right }: PageHeaderProps) {
   return (
-    <div className="shrink-0 border-b border-border">
+    <div className="shrink-0 border-b border-border/60">
       <div className="px-4 md:px-6 py-4 flex items-center justify-between">
         <div>
           <h2 className="text-base font-semibold text-text">{title}</h2>

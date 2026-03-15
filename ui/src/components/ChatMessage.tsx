@@ -173,7 +173,7 @@ export function ToolCallGroup({ calls, timestamp }: ToolCallGroupProps) {
     <div className="flex flex-col items-start ml-8">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-secondary/80 border border-border text-text-muted text-[12px] hover:text-text hover:border-border hover:bg-bg-secondary transition-all cursor-pointer select-none"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-[12px] hover:text-text hover:bg-accent/15 transition-all cursor-pointer select-none"
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-50">
           <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
@@ -228,7 +228,7 @@ export function StreamingToolGroup({ tools }: StreamingToolGroupProps) {
       {tools.map((tool) => (
         <div
           key={tool.id}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-bg-secondary/80 border border-border text-[12px] text-text-muted"
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-[12px]"
         >
           {tool.status === 'running' ? (
             <span className="inline-block w-3 h-3 border-2 border-text-muted/30 border-t-text-muted rounded-full animate-spin" />

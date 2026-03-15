@@ -222,7 +222,7 @@ export function Sidebar({ sseConnected, open, onClose }: SidebarProps) {
       >
         {/* Branding */}
         <div className="px-5 py-4 flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-accent/15 flex items-center justify-center text-accent">
+          <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center text-accent">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
             </svg>
@@ -243,11 +243,11 @@ export function Sidebar({ sseConnected, open, onClose }: SidebarProps) {
                     onClick={onClose}
                     className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left ${
                       expanded
-                        ? 'text-text bg-bg-tertiary/60'
-                        : 'text-text-muted hover:text-text hover:bg-bg-tertiary/40'
+                        ? 'bg-accent/10 text-text'
+                        : 'text-text-muted hover:bg-[#25252e] hover:text-text'
                     }`}
                   >
-                    {expanded && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-accent" />}
+                    {expanded && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-accent" />}
                     <span className="flex items-center justify-center w-5 h-5">{item.icon(expanded)}</span>
                     <span className="flex-1">{item.label}</span>
                     <Chevron expanded={expanded} />
@@ -268,11 +268,11 @@ export function Sidebar({ sseConnected, open, onClose }: SidebarProps) {
                           onClick={onClose}
                           className={`relative w-full flex items-center pl-11 pr-3 py-1.5 rounded-lg text-[13px] transition-colors text-left ${
                             isActive
-                              ? 'bg-bg-tertiary/60 text-text'
-                              : 'text-text-muted hover:text-text hover:bg-bg-tertiary/40'
+                              ? 'bg-accent/10 text-text'
+                              : 'text-text-muted hover:bg-[#25252e] hover:text-text'
                           }`}
                         >
-                          {isActive && <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r-full bg-accent" />}
+                          {isActive && <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-accent" />}
                           {child.label}
                         </Link>
                       )
@@ -291,11 +291,11 @@ export function Sidebar({ sseConnected, open, onClose }: SidebarProps) {
                 onClick={onClose}
                 className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left ${
                   isActive
-                    ? 'bg-bg-tertiary/60 text-text'
-                    : 'text-text-muted hover:text-text hover:bg-bg-tertiary/40'
+                    ? 'bg-accent/10 text-text'
+                    : 'text-text-muted hover:bg-[#25252e] hover:text-text'
                 }`}
               >
-                {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-accent" />}
+                {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-accent" />}
                 <span className="flex items-center justify-center w-5 h-5">{item.icon(isActive)}</span>
                 {item.label}
               </Link>

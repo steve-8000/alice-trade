@@ -84,6 +84,10 @@ function MarketDataWSSection() {
     try { await marketDataApi.deleteConnection(id); await fetchConnections() } catch { /* ignore */ }
   }
 
+  const handleRemoveSymbol = async (connectionId: string, symbol: string) => {
+    try { await marketDataApi.removeSymbol(connectionId, symbol); await fetchConnections() } catch { /* ignore */ }
+  }
+
   const toggleTimeframe = (tf: string) => {
     setAddForm((prev) => ({
       ...prev,
@@ -184,13 +188,23 @@ function MarketDataWSSection() {
                     <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-1">Candle Data</p>
                     <div className="space-y-0.5">
                       {Object.entries(conn.data).map(([symbol, timeframes]) => (
-                        <div key={symbol} className="text-[11px]">
+                        <div key={symbol} className="text-[11px] flex items-center gap-1 group">
                           <span className="text-text font-medium">{symbol}</span>
                           <span className="text-text-muted ml-1.5">
                             {Object.entries(timeframes)
                               .map(([tf, info]) => `${tf}: ${info.count}`)
                               .join(', ')}
                           </span>
+                          <button
+                            onClick={() => handleRemoveSymbol(conn.id, symbol)}
+                            className="opacity-0 group-hover:opacity-100 ml-1 text-text-muted hover:text-red transition-all shrink-0"
+                            title={`Remove ${symbol}`}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
                         </div>
                       ))}
                     </div>
@@ -208,7 +222,12 @@ function MarketDataWSSection() {
         {/* Add connection form */}
         {showAdd ? (
           <div className="border border-border/60 rounded-lg p-3 space-y-2.5">
-            <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-1">Add Connection</p>
+            <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wide mb-1">{'\uC2EC\uBCFC \uCD94\uAC00'}</p>
+            {connections.some(c => c.exchange === addForm.exchange) && (
+              <p className="text-[10px] text-text-muted mb-1">
+                Existing {addForm.exchange} connection found — new symbols will be merged.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[11px] text-text-muted mb-0.5">Exchange</label>
@@ -263,7 +282,7 @@ function MarketDataWSSection() {
                 disabled={adding || !addForm.symbols.trim() || addForm.timeframes.length === 0}
                 className="border border-border rounded-lg px-4 py-2 text-[13px] font-medium cursor-pointer transition-colors hover:bg-bg-tertiary hover:text-text text-text-muted disabled:opacity-40 disabled:cursor-default"
               >
-                {adding ? 'Adding...' : 'Add'}
+                {adding ? 'Adding...' : '\uC2EC\uBCFC \uCD94\uAC00'}
               </button>
               <button
                 onClick={() => setShowAdd(false)}
@@ -275,10 +294,15 @@ function MarketDataWSSection() {
           </div>
         ) : (
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={() => {
+              if (connections.length > 0) {
+                setAddForm(prev => ({ ...prev, exchange: connections[0].exchange }))
+              }
+              setShowAdd(true)
+            }}
             className="border border-border rounded-lg px-4 py-2 text-[13px] font-medium cursor-pointer transition-colors hover:bg-bg-tertiary hover:text-text text-text-muted"
           >
-            Add Connection
+            {'\uC2EC\uBCFC \uCD94\uAC00'}
           </button>
         )}
       </div>

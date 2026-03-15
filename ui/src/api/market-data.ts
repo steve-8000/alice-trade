@@ -48,4 +48,9 @@ export const marketDataApi = {
     const res = await fetch(`/api/market-data/connections/${id}`, { method: 'DELETE' })
     if (!res.ok) throw new Error('Failed to delete connection')
   },
+
+  async removeSymbol(connectionId: string, symbol: string): Promise<void> {
+    const res = await fetch(`/api/market-data/connections/${connectionId}/symbols/${encodeURIComponent(symbol)}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error('Failed to remove symbol')
+  },
 }

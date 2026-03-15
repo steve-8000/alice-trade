@@ -26,7 +26,7 @@ export function createMarketDataRoutes(engine: MarketDataEngine) {
     return c.json(enriched)
   })
 
-  // POST /api/market-data/connections — add/update connection
+  // POST /api/market-data/connections — add/update connection (merges symbols if connection exists)
   app.post('/connections', async (c) => {
     const body = await c.req.json<{
       id?: string
@@ -38,6 +38,43 @@ export function createMarketDataRoutes(engine: MarketDataEngine) {
     }>()
 
     const id = body.id || `${body.exchange}-ws`
+    const existing = store.getConnection(id)
+
+    if (existing) {
+      // Merge symbols — add new ones, keep existing
+      const existingSymbols = new Set(existing.symbols)
+      const newSymbols = body.symbols.filter(s => !existingSymbols.has(s))
+      const mergedSymbols = [...existing.symbols, ...newSymbols]
+
+      // Update timeframes if provided
+      const timeframes = body.timeframes || existing.timeframes
+      const historyDays = body.historyDays || existing.historyDays
+
+      const updated: ConnectionConfig = {
+        ...existing,
+        symbols: mergedSymbols,
+        timeframes,
+        historyDays,
+      }
+      store.upsertConnection(updated)
+
+      // Only fetch history for NEW symbols
+      if (newSymbols.length > 0 && updated.enabled) {
+        const partialConn = { ...updated, symbols: newSymbols }
+        engine.startConnection(partialConn)
+      }
+
+      return c.json({
+        success: true,
+        connection: store.getConnection(id),
+        newSymbols,
+        message: newSymbols.length > 0
+          ? `Added ${newSymbols.length} new symbol(s): ${newSymbols.join(', ')}`
+          : 'No new symbols to add (all already exist)',
+      })
+    }
+
+    // New connection
     const conn: ConnectionConfig = {
       id,
       exchange: body.exchange,
@@ -54,7 +91,6 @@ export function createMarketDataRoutes(engine: MarketDataEngine) {
     store.upsertConnection(conn)
 
     if (conn.enabled) {
-      // Start in background
       engine.startConnection(conn)
     }
 
@@ -75,6 +111,24 @@ export function createMarketDataRoutes(engine: MarketDataEngine) {
     const id = c.req.param('id')
     engine.stopConnection(id)
     return c.json({ success: true })
+  })
+
+  // DELETE /api/market-data/connections/:id/symbols/:symbol — remove a single symbol
+  app.delete('/connections/:id/symbols/:symbol', (c) => {
+    const id = c.req.param('id')
+    const symbol = decodeURIComponent(c.req.param('symbol'))
+    const conn = store.getConnection(id)
+    if (!conn) return c.json({ error: 'Connection not found' }, 404)
+
+    const updatedSymbols = conn.symbols.filter(s => s !== symbol)
+    if (updatedSymbols.length === conn.symbols.length) {
+      return c.json({ error: 'Symbol not found' }, 404)
+    }
+
+    store.upsertConnection({ ...conn, symbols: updatedSymbols })
+    store.deleteCandles(conn.exchange, symbol)
+
+    return c.json({ success: true, removedSymbol: symbol })
   })
 
   // DELETE /api/market-data/connections/:id

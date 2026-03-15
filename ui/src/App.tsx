@@ -53,7 +53,7 @@ export function App() {
       />
       <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-bg">
         {/* Mobile header — visible only below md */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-bg-secondary shrink-0 md:hidden">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60 bg-bg-secondary shrink-0 md:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
             className="text-text-muted hover:text-text p-1 -ml-1"
