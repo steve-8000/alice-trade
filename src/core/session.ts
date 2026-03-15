@@ -390,8 +390,18 @@ export function toModelMessages(entries: SessionEntry[]): SDKModelMessage[] {
   return sanitizeToolMessages(messages)
 }
 
-/** Strip orphaned tool-call entries that have no matching tool-result downstream. */
+/** Strip orphaned tool-call and tool-result entries (mismatched pairs). */
 function sanitizeToolMessages(messages: SDKModelMessage[]): SDKModelMessage[] {
+  // Collect all tool-call IDs from assistant messages
+  const callIds = new Set<string>()
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        if (part.type === 'tool-call') callIds.add(part.toolCallId)
+      }
+    }
+  }
+
   // Collect all tool-result IDs
   const resultIds = new Set<string>()
   for (const msg of messages) {
@@ -405,13 +415,21 @@ function sanitizeToolMessages(messages: SDKModelMessage[]): SDKModelMessage[] {
   const out: SDKModelMessage[] = []
   for (const msg of messages) {
     if (msg.role === 'assistant' && Array.isArray(msg.content)) {
+      // Remove tool-calls without matching tool-results
       const filtered = msg.content.filter(
         (part) => part.type !== 'tool-call' || resultIds.has(part.toolCallId),
       )
       if (filtered.length > 0) {
         out.push({ ...msg, content: filtered })
       }
-      // Drop assistant message entirely if only orphaned tool-calls remained
+    } else if (msg.role === 'tool') {
+      // Remove tool-results without matching tool-calls
+      const filtered = msg.content.filter(
+        (part) => callIds.has(part.toolCallId),
+      )
+      if (filtered.length > 0) {
+        out.push({ ...msg, content: filtered })
+      }
     } else {
       out.push(msg)
     }
