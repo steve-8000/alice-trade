@@ -38,6 +38,7 @@ import { AgentSdkProvider } from './ai-providers/agent-sdk/agent-sdk-provider.js
 import { createEventLog } from './core/event-log.js'
 import { createCronEngine, createCronListener, createCronTools } from './task/cron/index.js'
 import { createHeartbeat } from './task/heartbeat/index.js'
+import { MarketDataStore, MarketDataEngine, createMarketDataTools } from './extension/market-data/index.js'
 
 // ==================== Persistence paths ====================
 
@@ -235,6 +236,15 @@ async function main() {
   toolCenter.register(createBrainTools(brain), 'brain')
   toolCenter.register(createCronTools(cronEngine), 'cron')
   toolCenter.register(createAnalysisTools(cryptoClient), 'analysis')
+
+  // ==================== Market Data Engine ====================
+
+  const marketDataStore = new MarketDataStore()
+  const marketDataEngine = new MarketDataEngine(marketDataStore)
+  toolCenter.register(createMarketDataTools(marketDataStore), 'market-data')
+
+  // Start all enabled connections in background
+  marketDataEngine.startAll()
 
   console.log(`tool-center: ${toolCenter.list().length} tools registered`)
 
@@ -462,7 +472,7 @@ async function main() {
 
   const ctx: EngineContext = {
     config, connectorCenter, agentCenter, eventLog, heartbeat, cronEngine, toolCenter,
-    accountManager,
+    accountManager, marketDataEngine,
     getAccountGit: (id: string): ITradingGit | undefined => accountSetups.get(id)?.git,
     reconnectAccount,
     reconnectConnectors,
@@ -509,6 +519,8 @@ async function main() {
     for (const plugin of [...corePlugins, ...optionalPlugins.values()]) {
       await plugin.stop()
     }
+    marketDataEngine.stopAll()
+    marketDataStore.close()
     await eventLog.close()
     await accountManager.closeAll()
     process.exit(0)
