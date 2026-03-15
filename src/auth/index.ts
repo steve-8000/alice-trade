@@ -9,3 +9,5 @@ export {
   refreshAccessToken,
 } from './oauth-providers.js'
 export type { OAuthConfig, OAuthSession } from './oauth-providers.js'
+export { loadRegisteredProviders, addRegisteredProvider, removeRegisteredProvider, saveRegisteredProviders } from './provider-registry.js'
+export type { RegisteredProvider } from './provider-registry.js'

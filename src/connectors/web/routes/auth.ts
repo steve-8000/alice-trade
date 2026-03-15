@@ -10,8 +10,13 @@ import {
   clearPendingSession,
   exchangeCodeForTokens,
   refreshAccessToken,
+  loadRegisteredProviders,
+  addRegisteredProvider,
+  removeRegisteredProvider,
 } from '../../../auth/index.js'
-import type { AuthToken } from '../../../auth/index.js'
+import type { AuthToken, RegisteredProvider } from '../../../auth/index.js'
+import { writeFile, mkdir } from 'fs/promises'
+import { resolve } from 'path'
 
 export function createAuthRoutes() {
   const app = new Hono()
@@ -160,6 +165,49 @@ export function createAuthRoutes() {
     }
     await saveAuthToken(body.provider, authToken)
     return c.json({ success: true })
+  })
+
+  // ==================== Provider Registry ====================
+
+  // GET /api/auth/providers — list registered providers
+  app.get('/providers', async (c) => {
+    const providers = await loadRegisteredProviders()
+    return c.json(providers)
+  })
+
+  // POST /api/auth/providers — add/update a provider
+  app.post('/providers', async (c) => {
+    const body = await c.req.json<RegisteredProvider>()
+    if (!body.id) body.id = `${body.sdkProvider}-${Date.now().toString(36)}`
+    await addRegisteredProvider(body)
+    return c.json({ success: true, id: body.id })
+  })
+
+  // DELETE /api/auth/providers/:id — remove a provider
+  app.delete('/providers/:id', async (c) => {
+    const id = c.req.param('id')
+    await removeRegisteredProvider(id)
+    return c.json({ success: true })
+  })
+
+  // POST /api/auth/providers/:id/activate — set as active provider
+  app.post('/providers/:id/activate', async (c) => {
+    const id = c.req.param('id')
+    const providers = await loadRegisteredProviders()
+    const provider = providers.find(p => p.id === id)
+    if (!provider) return c.json({ error: 'Provider not found' }, 404)
+
+    const configDir = resolve('data/config')
+    await mkdir(configDir, { recursive: true })
+    const aiConfig = {
+      backend: 'vercel-ai-sdk',
+      provider: provider.sdkProvider,
+      model: provider.model,
+      ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
+      apiKeys: provider.apiKey ? { [provider.sdkProvider]: provider.apiKey } : {},
+    }
+    await writeFile(resolve(configDir, 'ai-provider-manager.json'), JSON.stringify(aiConfig, null, 2) + '\n')
+    return c.json({ success: true, activeProvider: provider })
   })
 
   return app
