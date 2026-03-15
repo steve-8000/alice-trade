@@ -313,41 +313,82 @@ function AddProviderForm({ onAdded }: { onAdded: () => void }) {
 
 function ProviderSelector({ aiProvider, onProviderChanged }: { aiProvider: AIProviderConfig; onProviderChanged: () => void }) {
   const [providers, setProviders] = useState<RegisteredProvider[]>([])
-  const [activating, setActivating] = useState<string | null>(null)
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null)
+  const [models, setModels] = useState<string[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
+  const [switching, setSwitching] = useState(false)
 
   const fetchProviders = async () => {
     try {
       const res = await fetch('/api/auth/providers')
-      if (res.ok) setProviders(await res.json())
+      if (res.ok) {
+        const data = await res.json() as RegisteredProvider[]
+        setProviders(data)
+        // Auto-select the active provider
+        const active = data.find(p => p.sdkProvider === aiProvider.provider && p.model === aiProvider.model)
+        if (active) {
+          setSelectedProviderId(active.id)
+          fetchModelsForProvider(active)
+        } else if (data.length > 0 && !selectedProviderId) {
+          setSelectedProviderId(data[0].id)
+          fetchModelsForProvider(data[0])
+        }
+      }
     } catch { /* ignore */ }
+  }
+
+  const fetchModelsForProvider = async (provider: RegisteredProvider) => {
+    setLoadingModels(true)
+    try {
+      let url = `/api/auth/models/${provider.sdkProvider}`
+      const params = new URLSearchParams()
+      if (provider.baseUrl) params.set('proxyUrl', provider.baseUrl)
+      if (provider.apiKey) params.set('proxyKey', provider.apiKey)
+      if (params.toString()) url += `?${params.toString()}`
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json() as { models: string[] }
+        setModels(data.models || [])
+      }
+    } catch { /* ignore */ }
+    setLoadingModels(false)
   }
 
   useEffect(() => { fetchProviders() }, [])
 
-  const activeId = useMemo(() => {
-    // Match current ai-provider-manager config to a registered provider
-    return providers.find(p =>
-      p.sdkProvider === aiProvider.provider &&
-      p.model === aiProvider.model
-    )?.id ?? null
-  }, [providers, aiProvider.provider, aiProvider.model])
+  const activeModel = aiProvider.model
+  const activeProvider = aiProvider.provider
 
-  const handleActivate = async (id: string) => {
-    if (id === activeId) return
-    setActivating(id)
+  const handleSelectProvider = (provider: RegisteredProvider) => {
+    setSelectedProviderId(provider.id)
+    fetchModelsForProvider(provider)
+  }
+
+  const handleSelectModel = async (provider: RegisteredProvider, model: string) => {
+    setSwitching(true)
     try {
-      const res = await fetch(`/api/auth/providers/${id}/activate`, { method: 'POST' })
+      // Update the provider's model in registry
+      await fetch('/api/auth/providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...provider, model }),
+      })
+      // Activate it
+      const res = await fetch(`/api/auth/providers/${provider.id}/activate`, { method: 'POST' })
       if (res.ok) onProviderChanged()
     } catch { /* ignore */ }
-    setActivating(null)
+    setSwitching(false)
   }
 
   const handleDelete = async (id: string) => {
     try {
       await fetch(`/api/auth/providers/${id}`, { method: 'DELETE' })
+      if (selectedProviderId === id) { setSelectedProviderId(null); setModels([]) }
       fetchProviders()
     } catch { /* ignore */ }
   }
+
+  const selectedProvider = providers.find(p => p.id === selectedProviderId)
 
   if (providers.length === 0) {
     return (
@@ -360,20 +401,58 @@ function ProviderSelector({ aiProvider, onProviderChanged }: { aiProvider: AIPro
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-3 overflow-x-auto pb-1">
+      {/* Provider cards row */}
+      <div className="flex gap-2.5 overflow-x-auto pb-1">
         {providers.map(p => (
           <ProviderCard
             key={p.id}
             provider={p}
-            isActive={p.id === activeId}
-            onActivate={() => handleActivate(p.id)}
+            isActive={p.id === selectedProviderId}
+            onActivate={() => handleSelectProvider(p)}
             onDelete={() => handleDelete(p.id)}
           />
         ))}
         <AddProviderForm onAdded={fetchProviders} />
       </div>
-      {activating && (
-        <p className="text-[11px] text-accent animate-pulse">Switching provider...</p>
+
+      {/* Model list for selected provider */}
+      {selectedProvider && (
+        <div className="border border-border/60 rounded-xl p-3">
+          <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">
+            {selectedProvider.name} — Available Models
+          </p>
+          {loadingModels ? (
+            <p className="text-[11px] text-text-muted animate-pulse">Loading models...</p>
+          ) : models.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {models.map(m => {
+                const isCurrentModel = m === activeModel && selectedProvider.sdkProvider === activeProvider
+                return (
+                  <button
+                    key={m}
+                    onClick={() => handleSelectModel(selectedProvider, m)}
+                    disabled={switching}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
+                      isCurrentModel
+                        ? 'bg-accent text-white'
+                        : 'bg-bg-tertiary text-text-muted hover:bg-accent/15 hover:text-accent'
+                    }`}
+                  >
+                    {isCurrentModel && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="inline mr-1 -mt-0.5">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                    {m}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-[11px] text-text-muted/50">No models found. Check connection settings.</p>
+          )}
+          {switching && <p className="text-[11px] text-accent animate-pulse mt-2">Switching model...</p>}
+        </div>
       )}
     </div>
   )
