@@ -313,6 +313,19 @@ export class BacktestEngine {
     return signals
   }
 
+  private indicatorCache = new Map<string, (number | null)[]>()
+
+  private getCachedIndicator(
+    name: string, period: number,
+    closes: number[], highs: number[], lows: number[], volumes: number[],
+  ): (number | null)[] {
+    const key = `${name}_${period}`
+    if (this.indicatorCache.has(key)) return this.indicatorCache.get(key)!
+    const result = this.computeIndicator(name, period, closes, highs, lows, volumes)
+    this.indicatorCache.set(key, result)
+    return result
+  }
+
   /** Evaluate a named indicator at bar index. Used by customFilters. */
   private evalIndicator(
     name: string, period: number | undefined,
@@ -320,58 +333,62 @@ export class BacktestEngine {
     index: number,
   ): number | null {
     const p = period || 14
+    return this.getCachedIndicator(name, p, closes, highs, lows, volumes)[index] ?? null
+  }
+
+  private computeIndicator(name: string, p: number, closes: number[], highs: number[], lows: number[], volumes: number[]): (number | null)[] {
     switch (name) {
-      case 'close': return closes[index]
-      case 'high': return highs[index]
-      case 'low': return lows[index]
-      case 'volume': return volumes[index]
-      case 'sma': return sma(closes, p)[index]
-      case 'ema': return ema(closes, p)[index]
-      case 'rsi': return rsi(closes, p)[index]
-      case 'atr': return atr(highs, lows, closes, p)[index]
-      case 'vwap': return vwap(closes, volumes, p)[index]
-      case 'sma_volume': return sma(volumes, p)[index]
-      case 'ema_close': return ema(closes, p)[index]
-      case 'bb_upper': { const bb = bollingerBands(closes, p); return bb.upper[index] }
-      case 'bb_lower': { const bb = bollingerBands(closes, p); return bb.lower[index] }
-      case 'williamsR': return williamsR(highs, lows, closes, p)[index]
-      case 'cci': return cci(highs, lows, closes, p)[index]
-      case 'adx': return adx(highs, lows, closes, p)[index]
-      case 'roc': return roc(closes, p)[index]
-      case 'momentum': return momentum(closes, p)[index]
-      case 'obv': return obv(closes, volumes)[index]
-      case 'mfi': return mfi(highs, lows, closes, volumes, p)[index]
-      case 'psar': return psar(highs, lows)[index]
-      case 'ichimoku_tenkan': return ichimokuTenkan(highs, lows, p)[index]
-      case 'ichimoku_kijun': return ichimokuKijun(highs, lows, p)[index]
-      case 'donchian_upper': return donchianUpper(highs, p)[index]
-      case 'donchian_lower': return donchianLower(lows, p)[index]
-      case 'keltner_upper': return keltnerUpper(closes, highs, lows, p)[index]
-      case 'keltner_lower': return keltnerLower(closes, highs, lows, p)[index]
-      case 'stddev': return stdDev(closes, p)[index]
-      case 'cmf': return cmf(highs, lows, closes, volumes, p)[index]
-      case 'highest': return highest(highs, p)[index]
-      case 'lowest': return lowest(lows, p)[index]
-      case 'dema': return dema(closes, p)[index]
-      case 'tema': return tema(closes, p)[index]
-      case 'wma': return wma(closes, p)[index]
-      case 'hma': return hma(closes, p)[index]
-      case 'trix': return trix(closes, p)[index]
-      case 'chop': return chop(highs, lows, closes, p)[index]
-      case 'aroon_up': return aroonUp(highs, p)[index]
-      case 'aroon_down': return aroonDown(lows, p)[index]
-      case 'ultimate_osc': return ultimateOsc(highs, lows, closes)[index]
-      case 'ppo': return ppo(closes)[index]
-      case 'dpo': return dpo(closes, p)[index]
-      case 'mass_index': return massIndex(highs, lows)[index]
-      case 'stoch_k': { const s = stochRsi(closes, p, p, 3, 3); return s.k[index] }
-      case 'stoch_d': { const s = stochRsi(closes, p, p, 3, 3); return s.d[index] }
-      case 'macd_line': { const m = macd(closes, 12, 26, 9); return m.macd[index] }
-      case 'macd_signal': { const m = macd(closes, 12, 26, 9); return m.signal[index] }
-      case 'macd_histogram': { const m = macd(closes, 12, 26, 9); return m.histogram[index] }
-      case 'bb_middle': { const bb = bollingerBands(closes, p); return bb.middle[index] }
-      case 'wt1': { const hlc3 = closes.map((c, j) => (highs[j] + lows[j] + c) / 3); return waveTrend(hlc3, 9, 12, 3).wt1[index] }
-      case 'wt2': { const hlc3 = closes.map((c, j) => (highs[j] + lows[j] + c) / 3); return waveTrend(hlc3, 9, 12, 3).wt2[index] }
+      case 'close': return closes as (number | null)[]
+      case 'high': return highs as (number | null)[]
+      case 'low': return lows as (number | null)[]
+      case 'volume': return volumes as (number | null)[]
+      case 'sma': return sma(closes, p)
+      case 'ema': return ema(closes, p)
+      case 'rsi': return rsi(closes, p)
+      case 'atr': return atr(highs, lows, closes, p)
+      case 'vwap': return vwap(closes, volumes, p)
+      case 'sma_volume': return sma(volumes, p)
+      case 'ema_close': return ema(closes, p)
+      case 'bb_upper': bollingerBands(closes, p).upper
+      case 'bb_lower': bollingerBands(closes, p).lower
+      case 'williamsR': return williamsR(highs, lows, closes, p)
+      case 'cci': return cci(highs, lows, closes, p)
+      case 'adx': return adx(highs, lows, closes, p)
+      case 'roc': return roc(closes, p)
+      case 'momentum': return momentum(closes, p)
+      case 'obv': return obv(closes, volumes)
+      case 'mfi': return mfi(highs, lows, closes, volumes, p)
+      case 'psar': return psar(highs, lows)
+      case 'ichimoku_tenkan': return ichimokuTenkan(highs, lows, p)
+      case 'ichimoku_kijun': return ichimokuKijun(highs, lows, p)
+      case 'donchian_upper': return donchianUpper(highs, p)
+      case 'donchian_lower': return donchianLower(lows, p)
+      case 'keltner_upper': return keltnerUpper(closes, highs, lows, p)
+      case 'keltner_lower': return keltnerLower(closes, highs, lows, p)
+      case 'stddev': return stdDev(closes, p)
+      case 'cmf': return cmf(highs, lows, closes, volumes, p)
+      case 'highest': return highest(highs, p)
+      case 'lowest': return lowest(lows, p)
+      case 'dema': return dema(closes, p)
+      case 'tema': return tema(closes, p)
+      case 'wma': return wma(closes, p)
+      case 'hma': return hma(closes, p)
+      case 'trix': return trix(closes, p)
+      case 'chop': return chop(highs, lows, closes, p)
+      case 'aroon_up': return aroonUp(highs, p)
+      case 'aroon_down': return aroonDown(lows, p)
+      case 'ultimate_osc': return ultimateOsc(highs, lows, closes)
+      case 'ppo': return ppo(closes)
+      case 'dpo': return dpo(closes, p)
+      case 'mass_index': return massIndex(highs, lows)
+      case 'stoch_k': stochRsi(closes, p, p, 3, 3).k
+      case 'stoch_d': stochRsi(closes, p, p, 3, 3).d
+      case 'macd_line': macd(closes, 12, 26, 9).macd
+      case 'macd_signal': macd(closes, 12, 26, 9).signal
+      case 'macd_histogram': macd(closes, 12, 26, 9).histogram
+      case 'bb_middle': bollingerBands(closes, p).middle
+      case 'wt1': (() => { const h = closes.map((c, j) => (highs[j] + lows[j] + c) / 3); return waveTrend(h, 9, 12, 3).wt1 })()
+      case 'wt2': (() => { const h = closes.map((c, j) => (highs[j] + lows[j] + c) / 3); return waveTrend(h, 9, 12, 3).wt2 })()
       default: return null
     }
   }

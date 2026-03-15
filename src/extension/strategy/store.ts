@@ -170,8 +170,22 @@ export class StrategyStore {
 
   // ---- Backtest CRUD ----
 
-  getBacktestResults(): BacktestResult[] {
-    return (this.db.prepare('SELECT * FROM backtest_results ORDER BY created_at DESC').all() as any[]).map(this.mapBacktest)
+  getBacktestResults(limit = 50): BacktestResult[] {
+    return (this.db.prepare(
+      'SELECT id, name, exchange, symbols, timeframe, start_date, end_date, strategy_ids, risk_ids, strategy_configs, status, created_at, total_pnl, total_trades, wins, losses, win_rate, error FROM backtest_results ORDER BY created_at DESC LIMIT ?'
+    ).all(limit) as any[]).map((r: any) => ({
+      id: r.id, name: r.name, exchange: r.exchange,
+      symbols: JSON.parse(r.symbols || '[]'), timeframe: r.timeframe,
+      startDate: r.start_date, endDate: r.end_date,
+      strategyIds: JSON.parse(r.strategy_ids || '[]'),
+      riskIds: JSON.parse(r.risk_ids || '[]'),
+      strategyConfigs: r.strategy_configs ? JSON.parse(r.strategy_configs) : null,
+      status: r.status, createdAt: r.created_at,
+      totalPnl: r.total_pnl, totalTrades: r.total_trades,
+      wins: r.wins, losses: r.losses, winRate: r.win_rate,
+      dailyPnl: null, weeklyPnl: null, monthlyPnl: null, // skip for list
+      error: r.error,
+    }))
   }
 
   getBacktestResult(id: string): BacktestResult | null {
