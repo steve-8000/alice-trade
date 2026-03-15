@@ -142,178 +142,139 @@ export class BacktestEngine {
     return id
   }
 
+  /**
+   * Config-key-driven signal generation.
+   * Detects which indicators to use based on config keys present.
+   * Multiple indicators act as filters (AND logic) — entry only when all agree.
+   */
   private generateSignals(
     candles: Candle[],
     closes: number[],
-    highs: number[],
-    lows: number[],
+    _highs: number[],
+    _lows: number[],
     strategies: Strategy[],
   ): Array<'long' | 'short' | 'close_long' | 'close_short' | null> {
     const signals: Array<'long' | 'short' | 'close_long' | 'close_short' | null> = new Array(candles.length).fill(null)
+    const volumes = candles.map(c => (c as any).volume ?? 0)
+    const hlc3 = candles.map(c => (c.high + c.low + c.close) / 3)
 
     for (const strategy of strategies) {
       const cfg = strategy.config as Record<string, any>
-      const strategyType = (cfg.strategyType || cfg.type || strategy.name).toLowerCase()
 
-      // --- WaveTrend (VuManChu B) ---
-      if (strategyType.includes('wavetrend') || strategyType.includes('vmc') || strategyType.includes('vumanchu') || cfg.wtChannelLen) {
-        const channelLen = cfg.wtChannelLen || 9
-        const averageLen = cfg.wtAverageLen || 12
-        const maLen = cfg.wtMALen || 3
-        const obLevel = cfg.obLevel || 53
-        const osLevel = cfg.osLevel || -53
+      // Determine which indicators are active based on config keys
+      const useWT = cfg.wtChannelLen !== undefined || cfg.obLevel !== undefined || cfg.osLevel !== undefined
+        || strategy.name.toLowerCase().includes('vmc') || strategy.name.toLowerCase().includes('wavetrend')
+      const useRSI = cfg.rsiPeriod !== undefined || cfg.rsiOverbought !== undefined || cfg.rsiOversold !== undefined
+      const useStochRSI = cfg.stochLen !== undefined || cfg.stochRsiLen !== undefined
+      const useEMA = cfg.fastEma !== undefined || cfg.slowEma !== undefined
+      const useMACD = cfg.macdFastPeriod !== undefined || cfg.macdSlowPeriod !== undefined
+      const useBB = cfg.bbPeriod !== undefined
+      const useMFI = cfg.useMfiFilter === true || cfg.mfiPeriod !== undefined
 
-        // Calculate HLC3
-        const hlc3 = candles.map(c => (c.high + c.low + c.close) / 3)
-        const { wt1, wt2 } = waveTrend(hlc3, channelLen, averageLen, maLen)
+      // If no indicator detected, default to WaveTrend
+      const noIndicator = !useWT && !useRSI && !useStochRSI && !useEMA && !useMACD && !useBB
 
-        // Optional filters
-        const volumes = candles.map(c => (c as any).volume ?? 0)
-        const mfiPeriod = cfg.mfiPeriod || 60
-        const mfiValues = (volumes.some(v => v > 0)) ? rsiMfi(closes, volumes, mfiPeriod) : null
+      // Pre-compute all needed indicators
+      const wt = (useWT || noIndicator) ? waveTrend(hlc3, cfg.wtChannelLen || 9, cfg.wtAverageLen || 12, cfg.wtMALen || 3) : null
+      const wtOb = cfg.obLevel || 53
+      const wtOs = cfg.osLevel || -53
 
-        // Cooldown between entries (strategy-level)
-        const entryCooldown = cfg.cooldownBars || 0
-        let lastEntryBar = -Infinity
+      const rsiValues = useRSI ? rsi(closes, cfg.rsiPeriod || 14) : null
+      const rsiOb = cfg.rsiOverbought || cfg.overbought || 70
+      const rsiOs = cfg.rsiOversold || cfg.oversold || 30
 
-        for (let i = 1; i < candles.length; i++) {
-          if (wt1[i] === null || wt2[i] === null) continue
+      const stoch = useStochRSI ? stochRsi(closes, cfg.stochRsiLen || 14, cfg.stochLen || 14, cfg.kSmooth || 3, cfg.dSmooth || 3) : null
+      const stochOb = cfg.stochOverbought || 80
+      const stochOs = cfg.stochOversold || 20
 
-          // Long: WT crosses above in oversold zone
-          const wtCrossUp = crossesAbove(wt1, wt2, i)
-          const inOversold = (wt1[i]! < osLevel || wt2[i]! < osLevel)
+      const emaFast = useEMA ? ema(closes, cfg.fastEma || 9) : null
+      const emaSlow = useEMA ? ema(closes, cfg.slowEma || 21) : null
 
-          // Short: WT crosses below in overbought zone
-          const wtCrossDown = crossesBelow(wt1, wt2, i)
-          const inOverbought = (wt1[i]! > obLevel || wt2[i]! > obLevel)
+      const macdData = useMACD ? macd(closes, cfg.macdFastPeriod || 12, cfg.macdSlowPeriod || 26, cfg.macdSignalPeriod || 9) : null
 
-          // MFI trend filter: skip long if MFI trending down, skip short if MFI trending up
-          let mfiAllowLong = true
-          let mfiAllowShort = true
-          if (mfiValues && cfg.useMfiFilter && i > 1) {
-            const mfiCurr = mfiValues[i]
-            const mfiPrev = mfiValues[i - 1]
-            if (mfiCurr !== null && mfiPrev !== null) {
-              if (mfiCurr < mfiPrev) mfiAllowLong = false
-              if (mfiCurr > mfiPrev) mfiAllowShort = false
-            }
-          }
+      const bbData = useBB ? bollingerBands(closes, cfg.bbPeriod || 20, cfg.bbStdDev || 2) : null
 
-          // Gold buy exclusion: skip long entries on gold symbols
-          const symbol = candles[i].symbol?.toUpperCase() || ''
-          const isGold = symbol.includes('XAU') || symbol.includes('GOLD')
-          const goldBuyExclusion = cfg.goldBuyExclusion && isGold
+      const mfiValues = useMFI ? rsiMfi(closes, volumes, cfg.mfiPeriod || 60) : null
 
-          // Cooldown check
-          const cooledDown = (i - lastEntryBar) >= entryCooldown
+      const cooldown = cfg.cooldownBars || 0
+      let lastEntry = -Infinity
 
-          if (wtCrossUp && inOversold && cfg.allowLong !== false && mfiAllowLong && !goldBuyExclusion && cooledDown) {
-            if (!signals[i]) { signals[i] = 'long'; lastEntryBar = i }
-          }
-          if (wtCrossDown && inOverbought && cfg.allowShort !== false && mfiAllowShort && cooledDown) {
-            if (!signals[i]) { signals[i] = 'short'; lastEntryBar = i }
-          }
+      for (let i = 1; i < candles.length; i++) {
+        // Cooldown check
+        if ((i - lastEntry) < cooldown) continue
 
-          // Exit on opposite WT cross
-          if (wtCrossDown && !inOverbought) {
-            if (!signals[i]) signals[i] = 'close_long'
-          }
-          if (wtCrossUp && !inOversold) {
-            if (!signals[i]) signals[i] = 'close_short'
-          }
+        let longVotes = 0, shortVotes = 0, closeLongVotes = 0, closeShortVotes = 0
+        let totalIndicators = 0
+
+        // --- WaveTrend ---
+        if (wt) {
+          totalIndicators++
+          if (wt.wt1[i] === null || wt.wt2[i] === null) continue
+          const crossUp = crossesAbove(wt.wt1, wt.wt2, i)
+          const crossDown = crossesBelow(wt.wt1, wt.wt2, i)
+          const oversold = wt.wt1[i]! < wtOs || wt.wt2[i]! < wtOs
+          const overbought = wt.wt1[i]! > wtOb || wt.wt2[i]! > wtOb
+
+          if (crossUp && oversold) longVotes++
+          if (crossDown && overbought) shortVotes++
+          if (crossDown && !overbought) closeLongVotes++
+          if (crossUp && !oversold) closeShortVotes++
         }
-      }
 
-      // --- RSI ---
-      if (strategyType.includes('rsi') && !strategyType.includes('stochrsi')) {
-        const period = cfg.rsiPeriod || cfg.period || 14
-        const overbought = cfg.overbought || 70
-        const oversold = cfg.oversold || 30
-        const rsiValues = rsi(closes, period)
-        const oversoldLine = new Array(closes.length).fill(oversold) as number[]
-        const overboughtLine = new Array(closes.length).fill(overbought) as number[]
-
-        for (let i = 1; i < candles.length; i++) {
-          if (rsiValues[i] === null) continue
-          // RSI crosses below oversold -> long entry
-          if (crossesAbove(rsiValues as (number | null)[], oversoldLine as (number | null)[], i)) {
-            if (!signals[i]) signals[i] = 'long'
-          }
-          // RSI crosses above overbought -> close long / short entry
-          if (crossesBelow(rsiValues as (number | null)[], overboughtLine as (number | null)[], i)) {
-            if (!signals[i]) signals[i] = 'close_long'
-          }
+        // --- RSI filter ---
+        if (rsiValues && rsiValues[i] !== null) {
+          totalIndicators++
+          if (rsiValues[i]! < rsiOs) longVotes++
+          if (rsiValues[i]! > rsiOb) shortVotes++
+          if (rsiValues[i]! > rsiOb) closeLongVotes++
+          if (rsiValues[i]! < rsiOs) closeShortVotes++
         }
-      }
 
-      // --- Stochastic RSI ---
-      if (strategyType.includes('stochrsi') || strategyType.includes('stoch_rsi') || cfg.stochRsiLen) {
-        const rsiLen = cfg.stochRsiLen || cfg.rsiPeriod || 14
-        const stochLen = cfg.stochLen || 14
-        const kSmooth = cfg.kSmooth || 3
-        const dSmooth = cfg.dSmooth || 3
-        const obLevel = cfg.stochOverbought || 80
-        const osLevel = cfg.stochOversold || 20
-        const { k, d } = stochRsi(closes, rsiLen, stochLen, kSmooth, dSmooth)
-
-        for (let i = 1; i < candles.length; i++) {
-          if (k[i] === null || d[i] === null) continue
-          if (crossesAbove(k, d, i) && k[i]! < osLevel) {
-            if (!signals[i]) signals[i] = 'long'
-          }
-          if (crossesBelow(k, d, i) && k[i]! > obLevel) {
-            if (!signals[i]) signals[i] = 'short'
-          }
+        // --- StochRSI ---
+        if (stoch && stoch.k[i] !== null && stoch.d[i] !== null) {
+          totalIndicators++
+          if (crossesAbove(stoch.k, stoch.d, i) && stoch.k[i]! < stochOs) longVotes++
+          if (crossesBelow(stoch.k, stoch.d, i) && stoch.k[i]! > stochOb) shortVotes++
         }
-      }
 
-      // --- EMA Crossover ---
-      if (strategyType.includes('ema') || strategyType.includes('crossover') || strategyType.includes('ma_cross')) {
-        const fast = cfg.fastPeriod || cfg.fastEma || 9
-        const slow = cfg.slowPeriod || cfg.slowEma || 21
-        const fastEma = ema(closes, fast)
-        const slowEma = ema(closes, slow)
-
-        for (let i = 1; i < candles.length; i++) {
-          if (crossesAbove(fastEma, slowEma, i)) {
-            if (!signals[i]) signals[i] = 'long'
-          }
-          if (crossesBelow(fastEma, slowEma, i)) {
-            if (!signals[i]) signals[i] = 'close_long'
-          }
+        // --- EMA Crossover ---
+        if (emaFast && emaSlow) {
+          totalIndicators++
+          if (crossesAbove(emaFast, emaSlow, i)) longVotes++
+          if (crossesBelow(emaFast, emaSlow, i)) { shortVotes++; closeLongVotes++ }
         }
-      }
 
-      // --- MACD ---
-      if (strategyType.includes('macd')) {
-        const fastP = cfg.fastPeriod || 12
-        const slowP = cfg.slowPeriod || 26
-        const signalP = cfg.signalPeriod || 9
-        const { macd: macdLine, signal: signalLine } = macd(closes, fastP, slowP, signalP)
-
-        for (let i = 1; i < candles.length; i++) {
-          if (crossesAbove(macdLine, signalLine, i)) {
-            if (!signals[i]) signals[i] = 'long'
-          }
-          if (crossesBelow(macdLine, signalLine, i)) {
-            if (!signals[i]) signals[i] = 'close_long'
-          }
+        // --- MACD ---
+        if (macdData) {
+          totalIndicators++
+          if (crossesAbove(macdData.macd, macdData.signal, i)) longVotes++
+          if (crossesBelow(macdData.macd, macdData.signal, i)) { shortVotes++; closeLongVotes++ }
         }
-      }
 
-      // --- Bollinger Bands ---
-      if (strategyType.includes('bollinger') || strategyType.includes('bb')) {
-        const period = cfg.period || cfg.bbPeriod || 20
-        const stdDev = cfg.stdDev || cfg.deviation || 2
-        const { upper, lower } = bollingerBands(closes, period, stdDev)
+        // --- Bollinger Bands ---
+        if (bbData && bbData.lower[i] !== null && bbData.upper[i] !== null) {
+          totalIndicators++
+          if (closes[i] <= bbData.lower[i]! && closes[i - 1] > (bbData.lower[i - 1] ?? closes[i - 1])) longVotes++
+          if (closes[i] >= bbData.upper[i]! && closes[i - 1] < (bbData.upper[i - 1] ?? closes[i - 1])) { shortVotes++; closeLongVotes++ }
+        }
 
-        for (let i = 1; i < candles.length; i++) {
-          if (lower[i] !== null && closes[i] <= lower[i]! && closes[i - 1] > lower[i - 1]!) {
-            if (!signals[i]) signals[i] = 'long'
-          }
-          if (upper[i] !== null && closes[i] >= upper[i]! && closes[i - 1] < upper[i - 1]!) {
-            if (!signals[i]) signals[i] = 'close_long'
-          }
+        // --- MFI filter (reduces votes if trend disagrees) ---
+        if (mfiValues && mfiValues[i] !== null && i > 1 && mfiValues[i - 1] !== null) {
+          if (mfiValues[i]! < mfiValues[i - 1]!) longVotes = Math.max(0, longVotes - 1)
+          if (mfiValues[i]! > mfiValues[i - 1]!) shortVotes = Math.max(0, shortVotes - 1)
+        }
+
+        // --- Determine signal: require majority or at least 1 if only 1 indicator ---
+        const threshold = cfg.minSignalStrength || (totalIndicators === 1 ? 1 : Math.ceil(totalIndicators * 0.5))
+
+        if (cfg.allowLong !== false && longVotes >= threshold && !signals[i]) {
+          signals[i] = 'long'; lastEntry = i
+        } else if (cfg.allowShort !== false && shortVotes >= threshold && !signals[i]) {
+          signals[i] = 'short'; lastEntry = i
+        } else if (closeLongVotes > 0 && !signals[i]) {
+          signals[i] = 'close_long'
+        } else if (closeShortVotes > 0 && !signals[i]) {
+          signals[i] = 'close_short'
         }
       }
     }

@@ -224,15 +224,18 @@ async function main() {
 - Backtest runs server-side — don't fetch candles yourself.
 - Keep responses concise. Max 100 candles per query.
 
-## CRITICAL: Backtest Engine Parameters
-The backtest engine ONLY reads these numeric/boolean config keys. Text rules like entryRules/exitRules are IGNORED.
-**WaveTrend/VMC params:** wtChannelLen(9), wtAverageLen(12), wtMALen(3), obLevel(53), osLevel(-53), mfiPeriod(60), useMfiFilter(bool), cooldownBars(0), allowLong(true), allowShort(true), goldBuyExclusion(false)
-**RSI params:** rsiPeriod(14), overbought(70), oversold(30)
-**MACD params:** fastPeriod(12), slowPeriod(26), signalPeriod(9)
-**Bollinger params:** bbPeriod(20), stdDev(2)
-**EMA Cross params:** fastEma(9), slowEma(21)
-**Risk (from risk strategy):** stopPct, takePct, dailyLossLimitPct, maxConsecutiveLosses, cooldownBars, maxOpenPositions, riskPerTradePct, halfSizeFactor
-To tune, change THESE numeric values. Different values = different backtest results.
+## CRITICAL: Backtest Engine Config Keys
+The engine auto-detects indicators from config keys. Include ANY of these to activate:
+**WaveTrend:** wtChannelLen(9), wtAverageLen(12), wtMALen(3), obLevel(53), osLevel(-53)
+**RSI filter:** rsiPeriod(14), rsiOverbought(70), rsiOversold(30)
+**StochRSI:** stochLen(14), stochRsiLen(14), kSmooth(3), dSmooth(3), stochOverbought(80), stochOversold(20)
+**EMA Cross:** fastEma(9), slowEma(21)
+**MACD:** macdFastPeriod(12), macdSlowPeriod(26), macdSignalPeriod(9)
+**Bollinger:** bbPeriod(20), bbStdDev(2)
+**MFI filter:** useMfiFilter(true), mfiPeriod(60)
+**General:** cooldownBars(0), allowLong(true), allowShort(true), minSignalStrength(auto)
+**Risk:** stopPct, takePct, dailyLossLimitPct, maxConsecutiveLosses, maxOpenPositions, riskPerTradePct
+Multiple indicators = AND filter (majority voting). Tune by changing these numeric values.
 `)
 
   // ==================== Event Log ====================
