@@ -72,7 +72,12 @@ export class VercelAIProvider implements AIProvider {
   }
 
   async *generate(entries: SessionEntry[], _prompt: string, opts?: GenerateOpts): AsyncGenerator<ProviderEvent> {
-    const messages = toModelMessages(entries)
+    // Limit history to prevent oversized requests — keep last N entries
+    const MAX_HISTORY_ENTRIES = 30
+    const trimmedEntries = entries.length > MAX_HISTORY_ENTRIES
+      ? entries.slice(-MAX_HISTORY_ENTRIES)
+      : entries
+    const messages = toModelMessages(trimmedEntries)
 
     const agent = await this.resolveAgent(opts?.systemPrompt, opts?.disabledTools, opts?.vercelAiSdk)
 
