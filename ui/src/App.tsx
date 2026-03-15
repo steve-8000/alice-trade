@@ -37,7 +37,7 @@ export const ROUTES: Record<Page, string> = {
 export function App() {
   const [sseConnected, setSseConnected] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { aiWorking } = useWebSocket()
+  const { aiWorking, lastTool } = useWebSocket()
   const location = useLocation()
 
   return (
@@ -45,6 +45,7 @@ export function App() {
       <Sidebar
         sseConnected={sseConnected}
         aiWorking={aiWorking}
+        aiLastTool={lastTool}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />

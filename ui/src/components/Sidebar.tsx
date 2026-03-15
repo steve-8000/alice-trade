@@ -5,6 +5,7 @@ import { type Page, ROUTES } from '../App'
 interface SidebarProps {
   sseConnected: boolean
   aiWorking?: boolean
+  aiLastTool?: string | null
   open: boolean
   onClose: () => void
 }
@@ -134,7 +135,7 @@ function pathToPage(pathname: string): Page | null {
 
 // ==================== Sidebar ====================
 
-export function Sidebar({ sseConnected, aiWorking, open, onClose }: SidebarProps) {
+export function Sidebar({ sseConnected, aiWorking, aiLastTool, open, onClose }: SidebarProps) {
   const location = useLocation()
   const currentPage = pathToPage(location.pathname)
 
@@ -245,7 +246,7 @@ export function Sidebar({ sseConnected, aiWorking, open, onClose }: SidebarProps
           {aiWorking && (
             <div className="flex items-center gap-2 text-[12px] text-accent animate-pulse mb-1">
               <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
-              <span>AI processing...</span>
+              <span>{aiLastTool ? `Running: ${aiLastTool}` : 'AI processing...'}</span>
             </div>
           )}
           <div className="flex items-center gap-2 text-[12px] text-text-muted">

@@ -28,6 +28,11 @@ export interface WebConfig {
 
 export type WsBroadcast = (event: { type: string; [key: string]: unknown }) => void
 
+// Track current AI working state for new WS connections
+let aiState: { working: boolean; channelId?: string; events: Array<{ type: string; [key: string]: unknown }> } = {
+  working: false, events: [],
+}
+
 export class WebPlugin implements Plugin {
   name = 'web'
   private server: ReturnType<typeof serve> | null = null
@@ -76,6 +81,17 @@ export class WebPlugin implements Plugin {
     // ==================== WebSocket broadcast ====================
     const wsClients = new Set<WebSocket>()
     const wsBroadcast: WsBroadcast = (event) => {
+      // Track AI state
+      if (event.type === 'ai-start') {
+        aiState = { working: true, channelId: event.channelId as string, events: [] }
+      } else if (event.type === 'ai-stream') {
+        aiState.events.push(event)
+        // Keep only last 20 events to limit memory
+        if (aiState.events.length > 20) aiState.events = aiState.events.slice(-20)
+      } else if (event.type === 'ai-done' || event.type === 'ai-error') {
+        aiState = { working: false, events: [] }
+      }
+
       const data = JSON.stringify(event)
       for (const ws of wsClients) {
         if (ws.readyState === WebSocket.OPEN) {
@@ -130,6 +146,15 @@ export class WebPlugin implements Plugin {
 
     this.wss.on('connection', (ws) => {
       wsClients.add(ws)
+      // Send current AI state to newly connected client
+      if (aiState.working) {
+        try {
+          ws.send(JSON.stringify({ type: 'ai-start', channelId: aiState.channelId }))
+          for (const ev of aiState.events) {
+            ws.send(JSON.stringify(ev))
+          }
+        } catch { /* ignore */ }
+      }
       ws.on('close', () => wsClients.delete(ws))
       ws.on('error', () => wsClients.delete(ws))
     })
