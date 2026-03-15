@@ -103,7 +103,7 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
             return {
               text,
               finishReason: 'stop' as const,
-              usage: { promptTokens: data.prompt_eval_count || 0, completionTokens: data.eval_count || 0 },
+              usage: { promptTokens: data.prompt_eval_count || 0, completionTokens: data.eval_count || 0, totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0) },
               rawCall: { rawPrompt: messages, rawSettings: body },
               warnings: [],
             }
