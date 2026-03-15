@@ -170,6 +170,8 @@ export function useChat({ channel, onSSEStatus }: UseChatOptions): UseChatReturn
         } else if (event.type === 'done') {
           finalText = event.text
           finalMedia = event.media?.length ? event.media : undefined
+        } else if (event.type === 'error') {
+          throw new Error(event.error)
         }
       }
 

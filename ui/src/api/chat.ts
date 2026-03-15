@@ -8,6 +8,7 @@ export type ChatStreamEvent =
   | { type: 'stream'; event: { type: 'tool_result'; tool_use_id: string; content: string } }
   | { type: 'stream'; event: { type: 'text'; text: string } }
   | { type: 'done'; text: string; media: Array<{ type: string; url: string }> }
+  | { type: 'error'; error: string }
 
 // ==================== API ====================
 

@@ -60,34 +60,42 @@ export function createChatRoutes({ ctx, sessions, sseByChannel }: ChatDeps) {
     const channelClients = sseByChannel.get(channelId) ?? new Map()
 
     return streamSSE(c, async (sseStream) => {
-      for await (const event of stream) {
-        if (event.type === 'done') continue
-        const data = JSON.stringify({ type: 'stream', event })
+      try {
+        for await (const event of stream) {
+          if (event.type === 'done') continue
+          const data = JSON.stringify({ type: 'stream', event })
 
-        // Write to requesting client (reliable)
-        await sseStream.writeSSE({ data })
+          // Write to requesting client (reliable)
+          await sseStream.writeSSE({ data })
 
-        // Push to other SSE clients (best-effort, multi-tab)
-        for (const client of channelClients.values()) {
-          try { client.send(data) } catch { /* disconnected */ }
+          // Push to other SSE clients (best-effort, multi-tab)
+          for (const client of channelClients.values()) {
+            try { client.send(data) } catch { /* disconnected */ }
+          }
         }
+
+        // Stream fully drained — await resolves immediately with cached result
+        const result = await stream
+
+        await ctx.eventLog.append('message.sent', {
+          channel: 'web', to: channelId, prompt: message,
+          reply: result.text, durationMs: Date.now() - receivedEntry.ts,
+        })
+
+        // Media already persisted by AgentCenter — use pre-built URLs
+        const media = (result.mediaUrls ?? []).map((url: string) => ({ type: 'image', url }))
+
+        // Final event with result
+        await sseStream.writeSSE({
+          data: JSON.stringify({ type: 'done', text: result.text, media }),
+        })
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error('chat: stream error:', msg)
+        await sseStream.writeSSE({
+          data: JSON.stringify({ type: 'error', error: msg }),
+        })
       }
-
-      // Stream fully drained — await resolves immediately with cached result
-      const result = await stream
-
-      await ctx.eventLog.append('message.sent', {
-        channel: 'web', to: channelId, prompt: message,
-        reply: result.text, durationMs: Date.now() - receivedEntry.ts,
-      })
-
-      // Media already persisted by AgentCenter — use pre-built URLs
-      const media = (result.mediaUrls ?? []).map((url: string) => ({ type: 'image', url }))
-
-      // Final event with result
-      await sseStream.writeSSE({
-        data: JSON.stringify({ type: 'done', text: result.text, media }),
-      })
     })
   })
 
