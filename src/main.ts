@@ -215,14 +215,21 @@ async function main() {
 
   instructionParts.push(`
 ---
+## Core Rules
+- Respond in the same language the user uses (Korean/English).
+- Strategy descriptions MUST be in Korean.
+- Context limit: 130K tokens. Keep responses concise.
+- Do NOT fetch large candle data yourself — use backtest engine.
+- Available exchange data: **binance** only (BTC/USDT, ETH/USDT). Always use exchange="binance".
+- When user asks to add/create strategy → MUST call strategy({action:"add"}) to persist it.
+
 ## Tools
-- \`strategy\`: add/list/update/delete/refine/getActive strategies. Description in Korean. Config as JSON.
-- \`backtest\`: run/list/detail backtests using server engine.
+- \`strategy\`: add/list/update/delete/refine/getActive. Config = numeric params only.
+- \`backtest\`: run/list/detail. Runs server-side engine with active strategies.
 - \`marketData\`: candles/price/summary/status from SQLite DB.
 - \`loadToolGroup\`: load extended tools (trading, market-data, analysis).
-- When user asks to add strategy → MUST call strategy({action:"add"}).
-- Backtest runs server-side — don't fetch candles yourself.
-- Keep responses concise. Max 100 candles per query.
+- \`brainRead\`/\`brainUpdate\`: read/update cognitive state.
+- \`think\`: record analysis and plans before acting.
 
 ## CRITICAL: Backtest Engine Config Keys
 The engine auto-detects indicators from config keys. Include ANY of these to activate:
