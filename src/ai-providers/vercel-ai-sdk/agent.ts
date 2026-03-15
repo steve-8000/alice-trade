@@ -20,6 +20,7 @@ export function createAgent(
     tools,
     instructions,
     maxTokens,
+    maxRetries: 5,
     stopWhen: stepCountIs(maxSteps),
     onStepFinish: (step) => {
       for (const tc of step.toolCalls) {

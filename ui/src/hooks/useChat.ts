@@ -157,11 +157,15 @@ export function useChat({ channel, onSSEStatus }: UseChatOptions): UseChatReturn
     const abort = new AbortController()
     abortRef.current = abort
 
+    // 3-minute timeout for AI response
+    const timeout = setTimeout(() => abort.abort(), 180_000)
+
     try {
       const ch = channelRef.current === 'default' ? undefined : channelRef.current
       let finalText = ''
       let finalMedia: Array<{ type: string; url: string }> | undefined
       let segments: StreamSegment[] = []
+      let receivedDone = false
 
       for await (const event of chatApi.sendStreaming(text, ch, abort.signal)) {
         if (event.type === 'stream') {
@@ -170,19 +174,44 @@ export function useChat({ channel, onSSEStatus }: UseChatOptions): UseChatReturn
         } else if (event.type === 'done') {
           finalText = event.text
           finalMedia = event.media?.length ? event.media : undefined
+          receivedDone = true
         } else if (event.type === 'error') {
           throw new Error(event.error)
         }
       }
 
+      clearTimeout(timeout)
       setStreamSegments([])
+
+      // If stream ended without a done event, show accumulated text or error
+      if (!receivedDone && segments.length > 0) {
+        const partialText = segments
+          .filter((s): s is Extract<StreamSegment, { kind: 'text' }> => s.kind === 'text')
+          .map(s => s.text)
+          .join('')
+        if (partialText) finalText = partialText
+      }
+
+      if (!receivedDone && !finalText && segments.length === 0) {
+        throw new Error('AI response was empty — the connection may have been interrupted. Please try again.')
+      }
+
       const newItems = finalizeMessages(segments, finalText, finalMedia, () => nextId.current++)
       if (newItems.length > 0) {
         setMessages((prev) => [...prev, ...newItems])
       }
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return
+      clearTimeout(timeout)
       setStreamSegments([])
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // Check if it was our timeout
+        if (!abortRef.current) return // user-initiated abort
+        setMessages((prev) => [
+          ...prev,
+          { kind: 'text', role: 'notification', text: 'Error: AI response timed out (3 minutes). Please try again.', _id: nextId.current++ },
+        ])
+        return
+      }
       const msg = err instanceof Error ? err.message : 'Unknown error'
       setMessages((prev) => [
         ...prev,
