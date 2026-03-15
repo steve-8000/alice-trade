@@ -152,6 +152,15 @@ export class SessionStore implements ISessionStore {
     this.lastUuid = entry.uuid
   }
 
+  /** Clear the session — delete the JSONL file and reset state. */
+  async clear(): Promise<void> {
+    try {
+      const { unlink } = await import('fs/promises')
+      await unlink(this.filePath)
+    } catch { /* ignore if file doesn't exist */ }
+    this.lastUuid = null
+  }
+
   /** Restore lastUuid from existing file so new entries chain correctly. */
   async restore(): Promise<void> {
     const entries = await this.readAll()

@@ -113,19 +113,13 @@ export function useChat({ channel, onSSEStatus }: UseChatOptions): UseChatReturn
   const channelRef = useRef(channel)
   channelRef.current = channel
 
-  // Load chat history when channel changes
+  // Clear session and start fresh when channel changes (page load)
   useEffect(() => {
     const ch = channel === 'default' ? undefined : channel
-    chatApi.history(100, ch).then(({ messages: msgs }) => {
-      setMessages(msgs.map((m): DisplayItem => {
-        if (m.kind === 'text' && m.metadata?.kind === 'notification') {
-          return { ...m, role: 'notification', _id: nextId.current++ }
-        }
-        return { ...m, _id: nextId.current++ }
-      }))
-    }).catch((err) => {
-      console.warn('Failed to load history:', err)
-    })
+    // Clear server-side session first, then start fresh (no history loaded)
+    fetch(`/api/chat/session${ch ? `?channel=${encodeURIComponent(ch)}` : ''}`, { method: 'DELETE' })
+      .catch(() => {})
+    setMessages([])
   }, [channel])
 
   // SSE for push notifications (heartbeat, cron, multi-tab sync)

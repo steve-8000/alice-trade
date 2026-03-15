@@ -108,6 +108,16 @@ export function createChatRoutes({ ctx, sessions, sseByChannel }: ChatDeps) {
     return c.json({ messages: toChatHistory(entries).slice(-limit) })
   })
 
+  // DELETE /api/chat/session — clear session history
+  app.delete('/session', async (c) => {
+    const channelId = c.req.query('channel') ?? 'default'
+    const session = sessions.get(channelId)
+    if (session) {
+      await session.clear()
+    }
+    return c.json({ success: true })
+  })
+
   app.get('/events', (c) => {
     const channelId = c.req.query('channel') ?? 'default'
     // Create SSE client map for this channel if it doesn't exist yet
