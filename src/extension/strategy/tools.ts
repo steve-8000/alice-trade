@@ -44,11 +44,18 @@ export function createStrategyTools(store: StrategyStore, backtestEngine?: Backt
             if (!input.id) return { error: 'id is required for update' }
             const existing = store.getStrategy(input.id)
             if (!existing) return { error: `Strategy "${input.id}" not found.` }
+            // Merge config — don't replace, so partial updates don't wipe parameters
+            // Strip 'enabled' from config — use toggleStrategy API instead
+            const inputCfg = input.config ? { ...input.config } : null
+            if (inputCfg) delete inputCfg['enabled']
+            const mergedConfig = inputCfg
+              ? { ...existing.config, ...inputCfg }
+              : existing.config
             store.upsertStrategy({
               ...existing,
               name: input.name ?? existing.name,
               description: input.description ?? existing.description,
-              config: input.config ?? existing.config,
+              config: mergedConfig,
               updatedAt: new Date().toISOString(),
             })
             return { success: true, message: `Strategy "${existing.name}" updated.` }
