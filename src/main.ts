@@ -39,6 +39,7 @@ import { createEventLog } from './core/event-log.js'
 import { createCronEngine, createCronListener, createCronTools } from './task/cron/index.js'
 import { createHeartbeat } from './task/heartbeat/index.js'
 import { MarketDataStore, MarketDataEngine, createMarketDataTools } from './extension/market-data/index.js'
+import { StrategyStore, createStrategyTools } from './extension/strategy/index.js'
 
 // ==================== Persistence paths ====================
 
@@ -181,7 +182,7 @@ async function main() {
 
   const frontalLobe = brain.getFrontalLobe()
   const emotion = brain.getEmotion().current
-  const instructions = [
+  const instructionParts = [
     persona,
     '---',
     '## Current Brain State',
@@ -189,7 +190,29 @@ async function main() {
     `**Frontal Lobe:** ${frontalLobe || '(empty)'}`,
     '',
     `**Emotion:** ${emotion}`,
-  ].join('\n')
+  ]
+
+  // ==================== Strategy Store ====================
+
+  const strategyStore = new StrategyStore()
+
+  const activeRiskStrategies = strategyStore.getEnabledStrategies('risk')
+  if (activeRiskStrategies.length > 0) {
+    instructionParts.push('\n---\n## 리스크 관리 규칙 (모든 거래에 반드시 적용)')
+    for (const rs of activeRiskStrategies) {
+      instructionParts.push(`\n### ${rs.name}\n${rs.description}\nParameters: ${JSON.stringify(rs.config)}`)
+    }
+  }
+
+  const activeStrategies = strategyStore.getEnabledStrategies('trading')
+  if (activeStrategies.length > 0) {
+    instructionParts.push('\n---\n## 활성 트레이딩 전략')
+    for (const s of activeStrategies) {
+      instructionParts.push(`\n### ${s.name}\n${s.description}\nParameters: ${JSON.stringify(s.config)}`)
+    }
+  }
+
+  const instructions = instructionParts.join('\n')
 
   // ==================== Event Log ====================
 
@@ -242,6 +265,7 @@ async function main() {
   const marketDataStore = new MarketDataStore()
   const marketDataEngine = new MarketDataEngine(marketDataStore)
   toolCenter.register(createMarketDataTools(marketDataStore), 'market-data')
+  toolCenter.register(createStrategyTools(strategyStore), 'strategy')
 
   // Start all enabled connections in background
   marketDataEngine.startAll()
@@ -472,7 +496,7 @@ async function main() {
 
   const ctx: EngineContext = {
     config, connectorCenter, agentCenter, eventLog, heartbeat, cronEngine, toolCenter,
-    accountManager, marketDataEngine,
+    accountManager, marketDataEngine, strategyStore,
     getAccountGit: (id: string): ITradingGit | undefined => accountSetups.get(id)?.git,
     reconnectAccount,
     reconnectConnectors,
@@ -521,6 +545,7 @@ async function main() {
     }
     marketDataEngine.stopAll()
     marketDataStore.close()
+    strategyStore.close()
     await eventLog.close()
     await accountManager.closeAll()
     process.exit(0)

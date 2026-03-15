@@ -18,6 +18,7 @@ import { createTradingConfigRoutes } from './routes/trading-config.js'
 import { createDevRoutes } from './routes/dev.js'
 import { createToolsRoutes } from './routes/tools.js'
 import { createMarketDataRoutes } from './routes/market-data.js'
+import { createStrategyRoutes } from './routes/strategy.js'
 
 export interface WebConfig {
   port: number
@@ -85,6 +86,10 @@ export class WebPlugin implements Plugin {
 
     if (ctx.marketDataEngine) {
       app.route('/api/market-data', createMarketDataRoutes(ctx.marketDataEngine))
+    }
+
+    if (ctx.strategyStore) {
+      app.route('/api/strategy', createStrategyRoutes(ctx.strategyStore))
     }
 
     // ==================== Serve UI (Vite build output) ====================

@@ -78,6 +78,36 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    page: 'strategy' as const,
+    label: 'Strategy',
+    icon: (active: boolean) => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 20h20" />
+        <path d="M7 10l3-3 3 3 5-5" />
+        <polyline points="17 5 21 5 21 9" />
+      </svg>
+    ),
+  },
+  {
+    page: 'risk' as const,
+    label: 'Risk Management',
+    icon: (active: boolean) => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </svg>
+    ),
+  },
+  {
+    page: 'ai-trading' as const,
+    label: 'AI Trading Center',
+    icon: (active: boolean) => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M7 17V13" /><path d="M11 17V9" /><path d="M15 17V11" /><path d="M19 17V7" />
+      </svg>
+    ),
+  },
+  {
     page: 'data-sources',
     label: 'Data Sources',
     icon: (active) => (
