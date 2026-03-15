@@ -24,7 +24,7 @@ export default function RiskPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <PageHeader title="Risk Management" description="리스크 관리 전략을 관리합니다. 모든 거래에 최우선 적용됩니다." />
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5">
         <div className="max-w-[640px] space-y-2.5">

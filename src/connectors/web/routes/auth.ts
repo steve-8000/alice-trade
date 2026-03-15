@@ -210,5 +210,83 @@ export function createAuthRoutes() {
     return c.json({ success: true, activeProvider: provider })
   })
 
+  // GET /api/auth/models/:provider — fetch available models for a provider
+  app.get('/models/:provider', async (c) => {
+    const provider = c.req.param('provider')
+    const tokens = await loadAuthTokens()
+    const token = tokens[provider]
+
+    // Hardcoded model lists per provider (official API doesn't always list all)
+    const KNOWN_MODELS: Record<string, string[]> = {
+      anthropic: [
+        'claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5',
+        'claude-opus-4-5-20251101', 'claude-sonnet-4-5-20250514',
+      ],
+      openai: [
+        'gpt-5.3-codex-spark', 'gpt-5.3-codex', 'gpt-5.2-codex', 'gpt-5.2',
+        'gpt-5.1-codex', 'gpt-5.1', 'gpt-5-codex', 'gpt-5',
+        'o4-mini', 'o3', 'gpt-4.1',
+      ],
+      google: [
+        'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash',
+        'gemini-3.1-pro-preview', 'gemini-3-flash-preview',
+      ],
+    }
+
+    // Try to fetch live model list from API (OpenAI-compatible)
+    if (token?.access) {
+      try {
+        const baseUrls: Record<string, string> = {
+          openai: 'https://api.openai.com/v1',
+          google: 'https://generativelanguage.googleapis.com/v1beta',
+        }
+        const baseUrl = baseUrls[provider]
+        if (baseUrl && provider === 'openai') {
+          const res = await fetch(`${baseUrl}/models`, {
+            headers: { 'Authorization': `Bearer ${token.access}` },
+          })
+          if (res.ok) {
+            const data = await res.json() as { data?: Array<{ id: string }> }
+            if (data.data?.length) {
+              return c.json({
+                provider,
+                source: 'live',
+                models: data.data.map(m => m.id).sort(),
+              })
+            }
+          }
+        }
+      } catch { /* fall through to known models */ }
+    }
+
+    // Also try querying clab-proxy if configured
+    const proxyUrl = c.req.query('proxyUrl')
+    const proxyKey = c.req.query('proxyKey')
+    if (proxyUrl) {
+      try {
+        const headers: Record<string, string> = {}
+        if (proxyKey) headers['Authorization'] = `Bearer ${proxyKey}`
+        const res = await fetch(`${proxyUrl}/v1/models`, { headers })
+        if (res.ok) {
+          const data = await res.json() as { data?: Array<{ id: string }> }
+          if (data.data?.length) {
+            return c.json({
+              provider,
+              source: 'proxy',
+              models: data.data.map(m => m.id).sort(),
+            })
+          }
+        }
+      } catch { /* fall through */ }
+    }
+
+    return c.json({
+      provider,
+      source: 'known',
+      models: KNOWN_MODELS[provider] || [],
+      authenticated: !!token?.access,
+    })
+  })
+
   return app
 }

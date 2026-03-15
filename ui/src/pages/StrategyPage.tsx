@@ -30,7 +30,7 @@ export default function StrategyPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col flex-1 min-h-0">
       <PageHeader title="Strategy" description="AI 트레이딩 전략을 관리합니다." />
       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5">
         <div className="max-w-[640px] space-y-2.5">

@@ -136,9 +136,51 @@ function AddProviderForm({ onAdded }: { onAdded: () => void }) {
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [saving, setSaving] = useState(false)
+  const [availableModels, setAvailableModels] = useState<string[]>([])
+  const [loadingModels, setLoadingModels] = useState(false)
 
   const reset = () => {
-    setName(''); setSdkProvider('anthropic'); setModel(''); setAuthType('oauth'); setApiKey(''); setBaseUrl('')
+    setName(''); setSdkProvider('anthropic'); setModel(''); setAuthType('oauth')
+    setApiKey(''); setBaseUrl(''); setAvailableModels([])
+  }
+
+  // Auto-fetch models when provider changes
+  const fetchModels = async (provider: string, proxyUrl?: string, proxyKey?: string) => {
+    setLoadingModels(true)
+    try {
+      let url = `/api/auth/models/${provider}`
+      const params = new URLSearchParams()
+      if (proxyUrl) params.set('proxyUrl', proxyUrl)
+      if (proxyKey) params.set('proxyKey', proxyKey)
+      if (params.toString()) url += `?${params.toString()}`
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json() as { models: string[]; authenticated?: boolean }
+        setAvailableModels(data.models || [])
+        if (data.models?.length && !model) setModel(data.models[0])
+      }
+    } catch { /* ignore */ }
+    setLoadingModels(false)
+  }
+
+  useEffect(() => {
+    if (open) fetchModels(sdkProvider, baseUrl || undefined, apiKey || undefined)
+  }, [open, sdkProvider])
+
+  const handleProviderChange = (newProvider: 'anthropic' | 'openai' | 'google') => {
+    setSdkProvider(newProvider)
+    setModel('')
+    setAvailableModels([])
+    const defaultNames: Record<string, string> = { anthropic: 'Claude', openai: 'ChatGPT', google: 'Gemini' }
+    if (!name) setName(defaultNames[newProvider] || '')
+  }
+
+  const handleBaseUrlChange = (url: string) => {
+    setBaseUrl(url)
+    if (url && authType === 'apikey') {
+      // Re-fetch from proxy
+      fetchModels(sdkProvider, url, apiKey || undefined)
+    }
   }
 
   const handleSave = async () => {
@@ -192,14 +234,26 @@ function AddProviderForm({ onAdded }: { onAdded: () => void }) {
           <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Claude (Browser)" />
         </Field>
         <Field label="SDK Provider">
-          <select className={inputClass} value={sdkProvider} onChange={(e) => setSdkProvider(e.target.value as 'anthropic' | 'openai' | 'google')}>
+          <select className={inputClass} value={sdkProvider} onChange={(e) => handleProviderChange(e.target.value as 'anthropic' | 'openai' | 'google')}>
             <option value="anthropic">Anthropic</option>
             <option value="openai">OpenAI</option>
             <option value="google">Google</option>
           </select>
         </Field>
         <Field label="Model">
-          <input className={inputClass} value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. claude-sonnet-4-6" />
+          {loadingModels ? (
+            <div className={`${inputClass} flex items-center text-text-muted`}>Loading models...</div>
+          ) : availableModels.length > 0 ? (
+            <select className={inputClass} value={model} onChange={(e) => setModel(e.target.value)}>
+              {availableModels.map(m => <option key={m} value={m}>{m}</option>)}
+              <option value="__custom__">Custom...</option>
+            </select>
+          ) : (
+            <input className={inputClass} value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. claude-sonnet-4-6" />
+          )}
+          {model === '__custom__' && (
+            <input className={`${inputClass} mt-1.5`} value="" onChange={(e) => setModel(e.target.value)} placeholder="Enter custom model ID" />
+          )}
         </Field>
         <Field label="Auth Type">
           <select className={inputClass} value={authType} onChange={(e) => setAuthType(e.target.value as 'oauth' | 'apikey')}>
@@ -213,15 +267,18 @@ function AddProviderForm({ onAdded }: { onAdded: () => void }) {
               <input className={inputClass} type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." />
             </Field>
             <Field label="Base URL">
-              <input className={inputClass} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Leave empty for official API" />
+              <input className={inputClass} value={baseUrl} onChange={(e) => handleBaseUrlChange(e.target.value)} placeholder="Leave empty for official API" />
             </Field>
           </>
         )}
       </div>
+      {availableModels.length > 0 && (
+        <p className="text-[10px] text-text-muted/50 mt-2">{availableModels.length} models available</p>
+      )}
       <div className="mt-3 flex justify-end">
         <button
           onClick={handleSave}
-          disabled={saving || !name.trim() || !model.trim()}
+          disabled={saving || !name.trim() || !model.trim() || model === '__custom__'}
           className="bg-accent text-white rounded-lg px-4 py-1.5 text-[12px] font-semibold cursor-pointer transition-opacity hover:opacity-85 disabled:opacity-50"
         >
           {saving ? 'Saving...' : 'Add Provider'}

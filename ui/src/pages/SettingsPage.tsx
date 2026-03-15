@@ -57,7 +57,7 @@ export function SettingsPage() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {activeTab === 'general' && <GeneralTab />}
         {activeTab === 'ai-provider' && <AIProviderPage />}
         {activeTab === 'trading' && <TradingPage />}
