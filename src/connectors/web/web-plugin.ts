@@ -19,6 +19,7 @@ import { createDevRoutes } from './routes/dev.js'
 import { createToolsRoutes } from './routes/tools.js'
 import { createMarketDataRoutes } from './routes/market-data.js'
 import { createStrategyRoutes } from './routes/strategy.js'
+import { createAuthRoutes } from './routes/auth.js'
 
 export interface WebConfig {
   port: number
@@ -83,6 +84,7 @@ export class WebPlugin implements Plugin {
     app.route('/api/trading', createTradingRoutes(ctx))
     app.route('/api/dev', createDevRoutes(ctx.connectorCenter))
     app.route('/api/tools', createToolsRoutes(ctx.toolCenter))
+    app.route('/api/auth', createAuthRoutes())
 
     if (ctx.marketDataEngine) {
       app.route('/api/market-data', createMarketDataRoutes(ctx.marketDataEngine))

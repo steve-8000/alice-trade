@@ -8,6 +8,7 @@
 
 import type { LanguageModel } from 'ai'
 import { readAIProviderConfig } from '../../core/config.js'
+import { loadAuthTokens, isTokenExpired, refreshAccessToken, saveAuthToken } from '../../auth/index.js'
 
 /** Result includes the model plus a cache key for change detection. */
 export interface ModelFromConfig {
@@ -32,27 +33,48 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
   const url = override?.baseUrl ?? config.baseUrl
   const key = `${p}:${m}:${url ?? ''}`
 
-  // Resolve API key: override.apiKey > global config.apiKeys[provider]
-  const resolveApiKey = (provider: string) => {
+  // Resolve API key: override.apiKey > global config.apiKeys[provider] > OAuth token
+  const resolveApiKey = async (provider: string): Promise<string | undefined> => {
     if (override?.apiKey) return override.apiKey
-    return (config.apiKeys as Record<string, string | undefined>)[provider] || undefined
+    const configKey = (config.apiKeys as Record<string, string | undefined>)[provider]
+    if (configKey) return configKey
+
+    // Fall back to OAuth tokens
+    const tokens = await loadAuthTokens()
+    const token = tokens[provider]
+    if (token?.access) {
+      // Auto-refresh if expired
+      if (isTokenExpired(token) && token.refresh) {
+        try {
+          const refreshed = await refreshAccessToken(provider, token.refresh)
+          const updated = { ...token, access: refreshed.access, refresh: refreshed.refresh || token.refresh, expires: refreshed.expires }
+          await saveAuthToken(provider, updated)
+          return updated.access
+        } catch {
+          return token.access // try with expired token
+        }
+      }
+      return token.access
+    }
+
+    return url ? 'ollama' : undefined
   }
 
   switch (p) {
     case 'anthropic': {
       const { createAnthropic } = await import('@ai-sdk/anthropic')
-      const client = createAnthropic({ apiKey: resolveApiKey('anthropic'), baseURL: url || undefined })
+      const client = createAnthropic({ apiKey: await resolveApiKey('anthropic'), baseURL: url || undefined })
       return { model: client(m), key }
     }
     case 'openai': {
       const { createOpenAI } = await import('@ai-sdk/openai')
-      const apiKey = resolveApiKey('openai') || (url ? 'ollama' : undefined)
+      const apiKey = await resolveApiKey('openai')
       const client = createOpenAI({ apiKey, baseURL: url || undefined })
       return { model: client.chat(m), key }
     }
     case 'google': {
       const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
-      const client = createGoogleGenerativeAI({ apiKey: resolveApiKey('google'), baseURL: url || undefined })
+      const client = createGoogleGenerativeAI({ apiKey: await resolveApiKey('google'), baseURL: url || undefined })
       return { model: client(m), key }
     }
     default:

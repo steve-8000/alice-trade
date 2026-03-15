@@ -43,146 +43,135 @@ function detectCustomMode(provider: string, model: string): boolean {
   return !presets.some((p) => p.value === model)
 }
 
-// ==================== Browser Auth (clab-proxy) ====================
+// ==================== OAuth Browser Auth ====================
 
-interface ProxyModel {
-  id: string
-  owned_by?: string
+interface AuthStatus {
+  [provider: string]: {
+    authenticated: boolean
+    expired: boolean
+    email?: string
+    provider: string
+  }
 }
 
-interface ProxyStats {
-  daily?: Record<string, Record<string, { request_count: number; prompt_tokens: number; completion_tokens: number; total_tokens: number }>>
-  totals?: Record<string, { request_count: number; total_tokens: number }>
-}
+const OAUTH_PROVIDERS = [
+  { id: 'anthropic', name: 'Claude', icon: 'A', color: 'bg-[#d97706]/15 text-[#d97706]' },
+  { id: 'openai', name: 'ChatGPT', icon: 'G', color: 'bg-[#10a37f]/15 text-[#10a37f]' },
+  { id: 'google', name: 'Gemini', icon: 'G', color: 'bg-[#4285f4]/15 text-[#4285f4]' },
+]
 
-function BrowserAuthSection({ aiProvider, onApply }: { aiProvider: AIProviderConfig; onApply: (model: string, baseUrl: string) => void }) {
-  const [proxyUrl, setProxyUrl] = useState(aiProvider.baseUrl || 'http://219.255.103.226:8317')
-  const [apiKey, setApiKey] = useState(aiProvider.apiKeys?.openai || '')
-  const [models, setModels] = useState<ProxyModel[]>([])
-  const [stats, setStats] = useState<ProxyStats | null>(null)
-  const [status, setStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'error'>('disconnected')
-  const [error, setError] = useState<string | null>(null)
-  const [selectedModel, setSelectedModel] = useState(aiProvider.model || '')
+function OAuthLoginSection({ onProviderChanged }: { onProviderChanged: () => void }) {
+  const [authStatus, setAuthStatus] = useState<AuthStatus>({})
+  const [loading, setLoading] = useState<string | null>(null)
 
-  const fetchModels = async () => {
-    setStatus('connecting')
-    setError(null)
+  const fetchStatus = async () => {
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
-
-      const [modelsRes, statsRes] = await Promise.all([
-        fetch(`${proxyUrl}/v1/models`, { headers }),
-        fetch(`${proxyUrl}/internal/stats`, { headers }).catch(() => null),
-      ])
-
-      if (!modelsRes.ok) throw new Error(`Failed to connect: ${modelsRes.status}`)
-
-      const modelsData = await modelsRes.json()
-      const modelList = (modelsData.data || []) as ProxyModel[]
-      setModels(modelList)
-
-      if (statsRes?.ok) {
-        setStats(await statsRes.json())
-      }
-
-      setStatus('connected')
-      if (modelList.length > 0 && !selectedModel) {
-        setSelectedModel(modelList[0].id)
-      }
-    } catch (err) {
-      setStatus('error')
-      setError(err instanceof Error ? err.message : 'Connection failed')
-    }
+      const res = await fetch('/api/auth/status')
+      if (res.ok) setAuthStatus(await res.json())
+    } catch { /* ignore */ }
   }
 
   useEffect(() => {
-    if (proxyUrl && aiProvider.baseUrl?.includes('8317')) {
-      fetchModels()
+    fetchStatus()
+    // Listen for OAuth popup success
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'oauth-success') {
+        fetchStatus()
+        onProviderChanged()
+      }
     }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
   }, [])
 
-  const handleApply = () => {
-    if (!selectedModel) return
-    onApply(selectedModel, proxyUrl)
+  const handleLogin = async (provider: string) => {
+    setLoading(provider)
+    try {
+      const res = await fetch(`/api/auth/login/${provider}`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to start login')
+      const { authUrl } = await res.json()
+      // Open OAuth in popup
+      window.open(authUrl, `oauth-${provider}`, 'width=600,height=700,scrollbars=yes')
+    } catch { /* ignore */ }
+    setLoading(null)
   }
 
-  const statusDot = {
-    disconnected: 'bg-gray-400',
-    connecting: 'bg-yellow-500 animate-pulse',
-    connected: 'bg-green',
-    error: 'bg-red',
+  const handleLogout = async (provider: string) => {
+    try {
+      await fetch(`/api/auth/${provider}`, { method: 'DELETE' })
+      fetchStatus()
+      onProviderChanged()
+    } catch { /* ignore */ }
   }
 
-  const todayKey = new Date().toISOString().slice(0, 10)
-  const todayStats = stats?.daily?.[todayKey]
+  const handleRefresh = async (provider: string) => {
+    try {
+      await fetch(`/api/auth/refresh/${provider}`, { method: 'POST' })
+      fetchStatus()
+    } catch { /* ignore */ }
+  }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-4">
-        <Field label="Proxy URL">
-          <input className={inputClass} value={proxyUrl} onChange={e => setProxyUrl(e.target.value)} placeholder="http://localhost:8317" />
-        </Field>
-      </div>
-      <Field label="API Key">
-        <input className={inputClass} type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="clp_... (leave empty for localhost)" />
-      </Field>
+    <div className="space-y-2">
+      {OAUTH_PROVIDERS.map(p => {
+        const status = authStatus[p.id]
+        const isAuth = status?.authenticated
+        const isExpired = status?.expired
 
-      <button
-        onClick={fetchModels}
-        disabled={status === 'connecting'}
-        className="border border-border rounded-[10px] px-4 py-2 text-[13px] font-medium cursor-pointer transition-colors hover:bg-bg-tertiary hover:text-text text-text-muted disabled:opacity-40"
-      >
-        {status === 'connecting' ? 'Connecting...' : 'Connect'}
-      </button>
-
-      {/* Connection Status */}
-      {status !== 'disconnected' && (
-        <div className="flex items-center gap-2 text-[12px]">
-          <span className={`w-2 h-2 rounded-full ${statusDot[status]}`} />
-          <span className={status === 'connected' ? 'text-green' : status === 'error' ? 'text-red' : 'text-text-muted'}>
-            {status === 'connected' ? `Connected — ${models.length} models` : status === 'error' ? error : 'Connecting...'}
-          </span>
-        </div>
-      )}
-
-      {/* Model Selection */}
-      {models.length > 0 && (
-        <>
-          <Field label="Model">
-            <select className={inputClass} value={selectedModel} onChange={e => setSelectedModel(e.target.value)}>
-              {models.map(m => (
-                <option key={m.id} value={m.id}>{m.id}</option>
-              ))}
-            </select>
-          </Field>
-
-          <button
-            onClick={handleApply}
-            disabled={!selectedModel}
-            className="bg-accent text-white rounded-[10px] px-4 py-2 text-[13px] font-medium cursor-pointer transition-opacity hover:opacity-85 disabled:opacity-40"
-          >
-            Apply Model
-          </button>
-
-          {/* Today's Usage */}
-          {todayStats && (
-            <div className="border border-border/40 rounded-[10px] p-3 mt-2">
-              <p className="text-[10px] font-semibold text-text-muted uppercase tracking-wider mb-2">Today&apos;s Usage</p>
-              <div className="space-y-1">
-                {Object.entries(todayStats).map(([model, usage]) => (
-                  <div key={model} className="flex items-center justify-between text-[11px]">
-                    <span className="text-text-muted">{model}</span>
-                    <span className="text-text">
-                      {usage.request_count} req · {(usage.total_tokens / 1000).toFixed(0)}K tokens
-                    </span>
-                  </div>
-                ))}
+        return (
+          <div key={p.id} className={`flex items-center justify-between rounded-xl px-4 py-3 border transition-colors ${
+            isAuth && !isExpired ? 'border-green/20 bg-green/[0.04]'
+              : isAuth && isExpired ? 'border-[#ffc342]/20 bg-[#ffc342]/[0.04]'
+              : 'border-border bg-bg-secondary/50'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[13px] font-bold ${p.color}`}>
+                {p.icon}
+              </div>
+              <div>
+                <div className="text-[13px] font-semibold text-text">{p.name}</div>
+                <div className="text-[11px] text-text-muted">
+                  {isAuth && !isExpired && <span className="text-green">Connected</span>}
+                  {isAuth && isExpired && <span className="text-[#ffc342]">Token expired</span>}
+                  {!isAuth && 'Not connected'}
+                  {status?.email && <span className="ml-1.5 text-text-muted/60">({status.email})</span>}
+                </div>
               </div>
             </div>
-          )}
-        </>
-      )}
+
+            <div className="flex items-center gap-1.5">
+              {isAuth && isExpired && (
+                <button
+                  onClick={() => handleRefresh(p.id)}
+                  className="border border-border rounded-lg px-3 py-1.5 text-[11px] font-medium cursor-pointer transition-colors hover:bg-bg-tertiary text-text-muted"
+                >
+                  Refresh
+                </button>
+              )}
+              {isAuth ? (
+                <button
+                  onClick={() => handleLogout(p.id)}
+                  className="border border-border rounded-lg px-3 py-1.5 text-[11px] font-medium cursor-pointer transition-colors hover:bg-red/10 hover:text-red text-text-muted"
+                >
+                  Logout
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleLogin(p.id)}
+                  disabled={loading === p.id}
+                  className="bg-accent text-white rounded-lg px-4 py-1.5 text-[11px] font-semibold cursor-pointer transition-opacity hover:opacity-85 disabled:opacity-50"
+                >
+                  {loading === p.id ? 'Opening...' : 'Login'}
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })}
+
+      <p className="text-[10px] text-text-muted/50 mt-1">
+        Browser OAuth login. No API keys needed — uses your existing subscription.
+      </p>
     </div>
   )
 }
@@ -192,9 +181,8 @@ function BrowserAuthSection({ aiProvider, onApply }: { aiProvider: AIProviderCon
 export function AIProviderPage() {
   const [config, setConfig] = useState<AppConfig | null>(null)
 
-  useEffect(() => {
-    api.config.load().then(setConfig).catch(() => {})
-  }, [])
+  const loadConfig = () => api.config.load().then(setConfig).catch(() => {})
+  useEffect(() => { loadConfig() }, [])
 
   const handleBackendSwitch = useCallback(
     async (backend: string) => {
@@ -204,27 +192,6 @@ export function AIProviderPage() {
       } catch { /* ignore */ }
     },
     [],
-  )
-
-  const handleBrowserAuthApply = useCallback(
-    async (model: string, baseUrl: string) => {
-      try {
-        const updated = {
-          ...config?.aiProvider,
-          provider: 'openai',
-          model,
-          baseUrl: baseUrl.endsWith('/v1') ? baseUrl : baseUrl + '/v1',
-          backend: 'vercel-ai-sdk',
-        }
-        await api.config.updateSection('aiProvider', updated)
-        await api.config.setBackend('vercel-ai-sdk')
-        setConfig((c) => c ? {
-          ...c,
-          aiProvider: { ...c.aiProvider, provider: 'openai', model, baseUrl: updated.baseUrl as string, backend: 'vercel-ai-sdk' },
-        } : c)
-      } catch { /* ignore */ }
-    },
-    [config],
   )
 
   return (
@@ -253,21 +220,18 @@ export function AIProviderPage() {
               </div>
             </Section>
 
-            {/* Browser Auth — Clab Proxy */}
+            {/* Browser OAuth Login */}
             <Section
               id="browser-auth"
-              title="Browser Auth (Clab Proxy)"
-              description="Connect to AI models via clab-proxy using browser OAuth. Supports GPT, Claude, Gemini without API keys."
+              title="Browser Login"
+              description="Login with your browser account. Uses OAuth — no API keys needed."
             >
-              <BrowserAuthSection
-                aiProvider={config.aiProvider}
-                onApply={handleBrowserAuthApply}
-              />
+              <OAuthLoginSection onProviderChanged={loadConfig} />
             </Section>
 
-            {/* Model (only for Vercel AI SDK) */}
+            {/* Direct API (only for Vercel AI SDK) */}
             {config.aiProvider.backend === 'vercel-ai-sdk' && (
-              <Section id="model" title="Direct API" description="Provider, model, and API keys for direct API connection.">
+              <Section id="model" title="Direct API" description="Manual provider, model, and API key configuration.">
                 <ModelForm aiProvider={config.aiProvider} />
               </Section>
             )}
