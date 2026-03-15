@@ -3,6 +3,21 @@ import { z } from 'zod'
 import type { StrategyStore } from './store.js'
 import type { BacktestEngine } from './backtest-engine.js'
 
+/** Strip non-numeric config values that the backtest engine can't read.
+ *  Keeps: numbers, booleans, arrays of numbers, customFilters array.
+ *  Removes: strings, objects (entryRules, exitRules, indicators, etc.) */
+function sanitizeConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const clean: Record<string, unknown> = {}
+  for (const [key, val] of Object.entries(config)) {
+    if (key === 'enabled') continue  // handled separately
+    if (key === 'customFilters' && Array.isArray(val)) { clean[key] = val; continue }
+    if (typeof val === 'number' || typeof val === 'boolean') { clean[key] = val; continue }
+    if (Array.isArray(val) && val.every(v => typeof v === 'number')) { clean[key] = val; continue }
+    // Skip strings, objects, etc. — engine can't read them
+  }
+  return clean
+}
+
 export function createStrategyTools(store: StrategyStore, backtestEngine?: BacktestEngine) {
   return {
     strategy: tool({
@@ -28,12 +43,19 @@ export function createStrategyTools(store: StrategyStore, backtestEngine?: Backt
             }
             const id = `${input.type}-${Date.now().toString(36)}`
             const now = new Date().toISOString()
+            const cleanConfig = sanitizeConfig(input.config)
             store.upsertStrategy({
               id, name: input.name, description: input.description,
-              type: input.type, config: input.config, enabled: false,
+              type: input.type, config: cleanConfig, enabled: false,
               createdAt: now, updatedAt: now, source: 'ai', parentId: null,
             })
-            return { success: true, id, message: `Strategy "${input.name}" added. Enable it from the UI.` }
+            const removedKeys = Object.keys(input.config).filter(k => !(k in cleanConfig))
+            return {
+              success: true, id,
+              message: `Strategy "${input.name}" added.`,
+              savedConfig: cleanConfig,
+              ...(removedKeys.length > 0 ? { warning: `Removed non-numeric keys (engine ignores text): ${removedKeys.join(', ')}` } : {}),
+            }
           }
 
           case 'list': {
@@ -45,10 +67,8 @@ export function createStrategyTools(store: StrategyStore, backtestEngine?: Backt
             if (!input.id) return { error: 'id is required for update' }
             const existing = store.getStrategy(input.id)
             if (!existing) return { error: `Strategy "${input.id}" not found.` }
-            // Merge config — don't replace, so partial updates don't wipe parameters
-            // Strip 'enabled' from config — use toggleStrategy API instead
-            const inputCfg = input.config ? { ...input.config } : null
-            if (inputCfg) delete inputCfg['enabled']
+            // Sanitize and merge config
+            const inputCfg = input.config ? sanitizeConfig(input.config) : null
             const mergedConfig = inputCfg
               ? { ...existing.config, ...inputCfg }
               : existing.config
