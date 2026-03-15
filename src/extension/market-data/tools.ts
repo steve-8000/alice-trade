@@ -5,31 +5,43 @@ import type { MarketDataStore } from './store.js'
 export function createMarketDataTools(store: MarketDataStore) {
   return {
     marketDataGetCandles: tool({
-      description: 'Get historical OHLCV candle data from the market data database. Returns candles with open, high, low, close, volume.',
+      description: 'Get historical OHLCV candle data from the market data database. Returns up to 100 candles with summary statistics. For backtesting, use the backtestRun tool instead.',
       inputSchema: z.object({
         exchange: z.string().describe('Exchange name, e.g. "binance" or "bybit"'),
         symbol: z.string().describe('Trading pair, e.g. "BTC/USDT"'),
         timeframe: z.string().default('1h').describe('Candle timeframe, e.g. "1m", "5m", "1h", "4h", "1d"'),
         since: z.string().optional().describe('Start date ISO string or unix ms'),
         until: z.string().optional().describe('End date ISO string or unix ms'),
-        limit: z.number().optional().default(500).describe('Max candles to return'),
+        limit: z.number().optional().default(100).describe('Max candles to return (max 200)'),
       }),
       execute: async (input) => {
         const sinceMs = input.since ? (isNaN(Number(input.since)) ? new Date(input.since).getTime() : Number(input.since)) : undefined
         const untilMs = input.until ? (isNaN(Number(input.until)) ? new Date(input.until).getTime() : Number(input.until)) : undefined
-        const candles = store.getCandles(input.exchange, input.symbol, input.timeframe, sinceMs, untilMs, input.limit || 500)
+        const limit = Math.min(input.limit || 100, 200)
+        const candles = store.getCandles(input.exchange, input.symbol, input.timeframe, sinceMs, untilMs, limit)
         if (!candles.length) return { error: `No candle data found for ${input.exchange}/${input.symbol}/${input.timeframe}` }
         const range = store.getDateRange(input.exchange, input.symbol, input.timeframe)
+        const totalAvailable = store.getCandleCount(input.exchange, input.symbol, input.timeframe)
+        const closes = candles.map(c => c.close)
+        const highs = candles.map(c => c.high)
+        const lows = candles.map(c => c.low)
+        const vols = candles.map(c => c.volume)
         return {
           exchange: input.exchange, symbol: input.symbol, timeframe: input.timeframe,
-          count: candles.length,
+          returned: candles.length, totalAvailable,
           dataRange: {
             oldest: range.oldest ? new Date(range.oldest).toISOString() : null,
             newest: range.newest ? new Date(range.newest).toISOString() : null,
           },
+          summary: {
+            high: Math.max(...highs), low: Math.min(...lows),
+            open: candles[0].open, close: candles[candles.length - 1].close,
+            avgVolume: vols.reduce((a, b) => a + b, 0) / vols.length,
+            change: ((closes[closes.length - 1] - closes[0]) / closes[0] * 100).toFixed(2) + '%',
+          },
           candles: candles.map(c => ({
-            time: new Date(c.timestamp).toISOString(),
-            open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
+            t: new Date(c.timestamp).toISOString().slice(0, 16),
+            o: c.open, h: c.high, l: c.low, c: c.close, v: Math.round(c.volume),
           })),
         }
       },

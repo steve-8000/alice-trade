@@ -248,9 +248,14 @@ This system has a SQLite market data database with historical OHLCV candles fetc
 - The database is populated via the Data Sources page (Settings > Data Sources)
 
 **CRITICAL**: When the user says "add a strategy", "create an RSI strategy", "set up risk management", etc., you MUST call \`strategyAdd\` to actually persist it. Do NOT just describe the strategy in text — save it to the system so it appears in the UI.
-`)
 
-  const instructions = instructionParts.join('\n')
+### Context Management Rules
+- This model has a **130K token context limit**. Be mindful of context usage.
+- **Do NOT request large amounts of candle data** in a single call. Use limit=50~100 and specific date ranges.
+- **For backtesting, use the \`backtestRun\` tool** which runs on the server engine directly — do NOT try to fetch thousands of candles and process them yourself.
+- When providing analysis, be **concise and focused**. Summarize data rather than listing every data point.
+- If a task is complex, **break it into steps**: analyze first, then act.
+`)
 
   // ==================== Event Log ====================
 
@@ -309,20 +314,32 @@ This system has a SQLite market data database with historical OHLCV candles fetc
   // Start all enabled connections in background
   marketDataEngine.startAll()
 
-  console.log(`tool-center: ${toolCenter.list().length} tools registered`)
+  // Build extended tool catalog for system prompt
+  const catalog = toolCenter.getExtendedCatalog()
+  if (catalog.length > 0) {
+    instructionParts.push('\n---\n## Available Tool Groups (use `loadToolGroup` to activate)\n')
+    for (const { group, tools } of catalog) {
+      instructionParts.push(`**${group}**: ${tools.map(t => t.name).join(', ')}`)
+    }
+    instructionParts.push('\nCall `loadToolGroup({group: "group-name"})` before using tools from these groups.')
+  }
+  // Rebuild instructions with catalog
+  const fullInstructions = instructionParts.join('\n')
+
+  console.log(`tool-center: ${toolCenter.list().length} tools registered (core: ${['thinking', 'brain', 'strategy', 'cron'].join(', ')})`)
 
   // ==================== AI Provider Chain ====================
 
   const vercelProvider = new VercelAIProvider(
     () => toolCenter.getVercelTools(),
-    instructions,
+    fullInstructions,
     config.agent.maxSteps,
     config.agent.maxTokens,
   )
-  const claudeCodeProvider = new ClaudeCodeProvider(instructions)
+  const claudeCodeProvider = new ClaudeCodeProvider(fullInstructions)
   const agentSdkProvider = new AgentSdkProvider(
     () => toolCenter.getVercelTools(),
-    instructions,
+    fullInstructions,
   )
   const router = new GenerateRouter(vercelProvider, claudeCodeProvider, agentSdkProvider)
 
