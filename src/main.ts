@@ -39,7 +39,7 @@ import { createEventLog } from './core/event-log.js'
 import { createCronEngine, createCronListener, createCronTools } from './task/cron/index.js'
 import { createHeartbeat } from './task/heartbeat/index.js'
 import { MarketDataStore, MarketDataEngine, createMarketDataTools } from './extension/market-data/index.js'
-import { StrategyStore, createStrategyTools } from './extension/strategy/index.js'
+import { StrategyStore, createStrategyTools, BacktestEngine } from './extension/strategy/index.js'
 
 // ==================== Persistence paths ====================
 
@@ -303,7 +303,8 @@ This system has a SQLite market data database with historical OHLCV candles fetc
   const marketDataStore = new MarketDataStore()
   const marketDataEngine = new MarketDataEngine(marketDataStore)
   toolCenter.register(createMarketDataTools(marketDataStore), 'market-data')
-  toolCenter.register(createStrategyTools(strategyStore), 'strategy')
+  const backtestEngine = new BacktestEngine(marketDataStore, strategyStore)
+  toolCenter.register(createStrategyTools(strategyStore, backtestEngine), 'strategy')
 
   // Start all enabled connections in background
   marketDataEngine.startAll()
@@ -534,7 +535,7 @@ This system has a SQLite market data database with historical OHLCV candles fetc
 
   const ctx: EngineContext = {
     config, connectorCenter, agentCenter, eventLog, heartbeat, cronEngine, toolCenter,
-    accountManager, marketDataEngine, strategyStore,
+    accountManager, marketDataEngine, strategyStore, backtestEngine,
     getAccountGit: (id: string): ITradingGit | undefined => accountSetups.get(id)?.git,
     reconnectAccount,
     reconnectConnectors,

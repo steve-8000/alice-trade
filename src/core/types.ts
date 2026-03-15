@@ -2,6 +2,7 @@ import type { AccountManager } from '../extension/trading/index.js'
 import type { ITradingGit } from '../extension/trading/git/interfaces.js'
 import type { MarketDataEngine } from '../extension/market-data/engine.js'
 import type { StrategyStore } from '../extension/strategy/store.js'
+import type { BacktestEngine } from '../extension/strategy/backtest-engine.js'
 import type { CronEngine } from '../task/cron/engine.js'
 import type { Heartbeat } from '../task/heartbeat/index.js'
 import type { Config, WebChannel } from './config.js'
@@ -47,6 +48,7 @@ export interface EngineContext {
 
   // Strategy & risk management
   strategyStore?: StrategyStore
+  backtestEngine?: BacktestEngine
 }
 
 /** A media attachment collected from tool results (e.g. browser screenshots). */

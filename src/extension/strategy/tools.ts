@@ -1,8 +1,9 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import type { StrategyStore } from './store.js'
+import type { BacktestEngine } from './backtest-engine.js'
 
-export function createStrategyTools(store: StrategyStore) {
+export function createStrategyTools(store: StrategyStore, backtestEngine?: BacktestEngine) {
   return {
     strategyAdd: tool({
       description: 'Add a new trading strategy or risk management strategy. The description MUST be written in Korean.',
@@ -117,65 +118,54 @@ export function createStrategyTools(store: StrategyStore) {
     }),
 
     backtestRun: tool({
-      description: 'Run a backtest by simulating trades against historical candle data using the active strategies. First fetch candles via marketDataGetCandles, simulate entries/exits, then call this tool to record results.',
+      description: 'Run a backtest using the code-based engine. Uses currently active trading strategies and risk management rules to simulate trades against historical candle data from the database.',
       inputSchema: z.object({
         name: z.string().describe('Backtest name'),
         exchange: z.string().describe('Exchange (e.g. "binance")'),
-        symbols: z.array(z.string()).describe('Symbols to test'),
+        symbol: z.string().describe('Symbol to test (e.g. "BTC/USDT")'),
         timeframe: z.string().default('1h').describe('Candle timeframe'),
         startDate: z.string().describe('Start date (ISO)'),
         endDate: z.string().describe('End date (ISO)'),
-        trades: z.array(z.object({
-          symbol: z.string(),
-          side: z.enum(['buy', 'sell']),
-          entryPrice: z.number(),
-          exitPrice: z.number(),
-          quantity: z.number(),
-          entryTime: z.string(),
-          exitTime: z.string(),
-          pnl: z.number(),
-        })).describe('Simulated trade records'),
-        dailyPnl: z.record(z.string(), z.number()).optional().describe('Daily PNL map'),
-        weeklyPnl: z.record(z.string(), z.number()).optional().describe('Weekly PNL map'),
-        monthlyPnl: z.record(z.string(), z.number()).optional().describe('Monthly PNL map'),
+        initialEquity: z.number().optional().default(10000).describe('Initial equity for simulation (default $10,000)'),
       }),
       execute: async (input) => {
-        const id = `bt-${Date.now().toString(36)}`
-        const now = new Date().toISOString()
-        const activeStrategies = store.getEnabledStrategies('trading')
-        const activeRisk = store.getEnabledStrategies('risk')
+        if (!backtestEngine) return { error: 'Backtest engine not available' }
+        try {
+          const btId = await backtestEngine.run({
+            name: input.name,
+            exchange: input.exchange,
+            symbol: input.symbol,
+            timeframe: input.timeframe,
+            startDate: input.startDate,
+            endDate: input.endDate,
+            initialEquity: input.initialEquity,
+          })
+          const result = store.getBacktestResult(btId)
+          if (!result) return { error: 'Backtest failed' }
+          if (result.status === 'error') return { error: result.error, id: btId }
 
-        const wins = input.trades.filter(t => t.pnl > 0).length
-        const losses = input.trades.filter(t => t.pnl <= 0).length
-        const totalPnl = input.trades.reduce((s, t) => s + t.pnl, 0)
-
-        store.insertBacktest({
-          id, name: input.name, exchange: input.exchange,
-          symbols: input.symbols, timeframe: input.timeframe,
-          startDate: input.startDate, endDate: input.endDate,
-          strategyIds: activeStrategies.map(s => s.id),
-          riskIds: activeRisk.map(s => s.id),
-          status: 'completed', createdAt: now,
-          totalPnl, totalTrades: input.trades.length,
-          wins, losses, winRate: input.trades.length > 0 ? wins / input.trades.length : 0,
-          dailyPnl: input.dailyPnl || null,
-          weeklyPnl: input.weeklyPnl || null,
-          monthlyPnl: input.monthlyPnl || null,
-          error: null,
-        })
-
-        const backtestTrades = input.trades.map((t, i) => ({
-          id: `${id}-t${i}`, backtestId: id,
-          symbol: t.symbol, side: t.side as 'buy' | 'sell',
-          entryPrice: t.entryPrice, exitPrice: t.exitPrice,
-          quantity: t.quantity, entryTime: t.entryTime, exitTime: t.exitTime,
-          pnl: t.pnl, status: 'closed' as const,
-        }))
-        store.insertTrades(backtestTrades)
-
-        return {
-          success: true, id,
-          summary: { totalPnl, totalTrades: input.trades.length, wins, losses, winRate: input.trades.length > 0 ? (wins / input.trades.length * 100).toFixed(1) + '%' : '0%' },
+          const trades = store.getBacktestTrades(btId)
+          return {
+            success: true,
+            id: btId,
+            summary: {
+              totalPnl: result.totalPnl,
+              totalTrades: result.totalTrades,
+              wins: result.wins,
+              losses: result.losses,
+              winRate: result.winRate !== null ? (result.winRate * 100).toFixed(1) + '%' : null,
+            },
+            strategies: result.strategyIds,
+            riskRules: result.riskIds,
+            tradeCount: trades.length,
+            topTrades: trades.slice(0, 5).map(t => ({
+              symbol: t.symbol, side: t.side,
+              entry: t.entryPrice, exit: t.exitPrice,
+              pnl: t.pnl, time: t.entryTime,
+            })),
+          }
+        } catch (err) {
+          return { error: err instanceof Error ? err.message : String(err) }
         }
       },
     }),

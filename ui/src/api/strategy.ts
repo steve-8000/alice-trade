@@ -83,4 +83,21 @@ export const strategyApi = {
   async deleteBacktest(id: string): Promise<void> {
     await fetch(`/api/strategy/backtests/${id}`, { method: 'DELETE' })
   },
+
+  async runBacktest(config: {
+    name: string; exchange: string; symbol: string;
+    timeframe: string; startDate: string; endDate: string;
+    initialEquity?: number;
+  }): Promise<{ success: boolean; result: BacktestResult }> {
+    const res = await fetch('/api/strategy/backtests/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Backtest failed')
+    }
+    return res.json()
+  },
 }

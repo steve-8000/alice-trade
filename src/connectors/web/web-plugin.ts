@@ -89,7 +89,7 @@ export class WebPlugin implements Plugin {
     }
 
     if (ctx.strategyStore) {
-      app.route('/api/strategy', createStrategyRoutes(ctx.strategyStore))
+      app.route('/api/strategy', createStrategyRoutes(ctx.strategyStore, ctx.backtestEngine))
     }
 
     // ==================== Serve UI (Vite build output) ====================
