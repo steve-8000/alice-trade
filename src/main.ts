@@ -212,6 +212,38 @@ async function main() {
     }
   }
 
+  // Strategy/Risk tool usage guide — always included so AI knows how to manage strategies
+  instructionParts.push(`
+---
+## 🛠️ 전략 관리 도구 사용 가이드
+
+사용자가 트레이딩 전략이나 리스크 관리 전략을 요청하면 반드시 아래 도구를 사용하세요:
+
+### 전략 추가/수정
+- \`strategyAdd\`: 새 전략을 시스템에 등록합니다. type은 "trading"(트레이딩) 또는 "risk"(리스크 관리)로 구분합니다.
+  - **description은 반드시 한국어로 작성**하세요
+  - **config에는 전략의 구체적인 매개변수를 JSON으로 저장**하세요 (예: {"rsiPeriod": 14, "overbought": 70, "oversold": 30, "takeProfitPercent": 2.0, "stopLossPercent": 1.0})
+  - 등록 후 사용자가 UI(Strategy 또는 Risk Management 메뉴)에서 활성화할 수 있습니다
+- \`strategyUpdate\`: 기존 전략의 매개변수를 수정합니다
+- \`strategyList\`: 등록된 전략 목록 조회
+- \`strategyGetActive\`: 현재 활성화된 전략 조회
+
+### 전략 미세조정
+- \`strategyRefine\`: 백테스트 결과를 기반으로 기존 전략의 매개변수를 조정하여 새로운 AI 추천 전략을 생성합니다
+
+### 백테스트
+- \`backtestRun\`: 활성화된 전략으로 과거 데이터를 시뮬레이션합니다. 먼저 \`marketDataGetCandles\`로 데이터를 가져온 후, 전략 로직에 따라 매매를 시뮬레이션하고 결과를 기록합니다.
+- \`backtestGetResults\`: 과거 백테스트 결과 조회
+- \`backtestGetDetail\`: 특정 백테스트의 매매 기록 상세 조회
+
+### 시장 데이터
+- \`marketDataGetCandles\`: DB에서 OHLCV 캔들 데이터 조회
+- \`marketDataGetLatestPrice\`: 최신 가격 조회
+- \`marketDataGetSummary\`: 통계 요약 (변동률, 거래량 등)
+
+**중요**: 사용자가 "전략 추가해줘", "RSI 전략 만들어줘", "리스크 관리 설정해줘" 등의 요청을 하면, 반드시 \`strategyAdd\` 도구를 호출하여 시스템에 실제로 저장하세요. 단순히 텍스트로 설명만 하지 마세요.
+`)
+
   const instructions = instructionParts.join('\n')
 
   // ==================== Event Log ====================
