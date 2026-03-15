@@ -67,11 +67,12 @@ export function createStrategyTools(store: StrategyStore, backtestEngine?: Backt
             if (!input.id) return { error: 'id is required for update' }
             const existing = store.getStrategy(input.id)
             if (!existing) return { error: `Strategy "${input.id}" not found.` }
-            // Sanitize and merge config
+            // Sanitize BOTH existing and new config, then merge
+            const existingClean = sanitizeConfig(existing.config)
             const inputCfg = input.config ? sanitizeConfig(input.config) : null
             const mergedConfig = inputCfg
-              ? { ...existing.config, ...inputCfg }
-              : existing.config
+              ? { ...existingClean, ...inputCfg }
+              : existingClean
             // Handle enabled toggle via DB column, not config
             const newEnabled = input.enabled !== undefined ? input.enabled : existing.enabled
             store.upsertStrategy({
