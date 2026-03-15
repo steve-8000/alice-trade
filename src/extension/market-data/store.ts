@@ -123,17 +123,28 @@ export class MarketDataStore {
   getConnections(): ConnectionConfig[] {
     const rows = this.db.prepare('SELECT * FROM connections').all() as any[]
     return rows.map(r => ({
-      ...r,
+      id: r.id,
+      exchange: r.exchange,
       symbols: JSON.parse(r.symbols),
       timeframes: JSON.parse(r.timeframes),
+      historyDays: r.history_days,
       enabled: !!r.enabled,
+      status: r.status,
+      firstBuilt: r.first_built,
+      lastUpdate: r.last_update,
+      error: r.error,
     }))
   }
 
   getConnection(id: string): ConnectionConfig | null {
     const r = this.db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as any
     if (!r) return null
-    return { ...r, symbols: JSON.parse(r.symbols), timeframes: JSON.parse(r.timeframes), enabled: !!r.enabled }
+    return {
+      id: r.id, exchange: r.exchange,
+      symbols: JSON.parse(r.symbols), timeframes: JSON.parse(r.timeframes),
+      historyDays: r.history_days, enabled: !!r.enabled,
+      status: r.status, firstBuilt: r.first_built, lastUpdate: r.last_update, error: r.error,
+    }
   }
 
   upsertConnection(conn: ConnectionConfig) {
