@@ -27,17 +27,17 @@ export interface BacktestResult {
   endDate: string            // ISO date
   strategyIds: string[]      // JSON — active trading strategies used
   riskIds: string[]          // JSON — active risk strategies used
+  strategyConfigs: Record<string, { name: string; config: Record<string, unknown> }> | null  // snapshot of strategy configs at test time
   status: 'running' | 'completed' | 'error'
   createdAt: string
-  // Results (populated on completion)
   totalPnl: number | null
   totalTrades: number | null
   wins: number | null
   losses: number | null
   winRate: number | null
-  dailyPnl: Record<string, number> | null   // JSON: { "2026-03-01": 123.45 }
-  weeklyPnl: Record<string, number> | null  // JSON
-  monthlyPnl: Record<string, number> | null // JSON
+  dailyPnl: Record<string, number> | null
+  weeklyPnl: Record<string, number> | null
+  monthlyPnl: Record<string, number> | null
   error: string | null
 }
 
@@ -104,6 +104,7 @@ export class StrategyStore {
         error TEXT
       );
 
+
       CREATE TABLE IF NOT EXISTS backtest_trades (
         id TEXT PRIMARY KEY,
         backtest_id TEXT NOT NULL,
@@ -122,6 +123,8 @@ export class StrategyStore {
       CREATE INDEX IF NOT EXISTS idx_backtest_trades_backtest ON backtest_trades(backtest_id);
       CREATE INDEX IF NOT EXISTS idx_strategies_type ON strategies(type);
     `)
+    // Migration: add strategy_configs column
+    try { this.db.exec('ALTER TABLE backtest_results ADD COLUMN strategy_configs TEXT') } catch { /* already exists */ }
   }
 
   // ---- Strategy CRUD ----
@@ -178,11 +181,13 @@ export class StrategyStore {
 
   insertBacktest(b: BacktestResult) {
     this.db.prepare(`
-      INSERT INTO backtest_results (id, name, exchange, symbols, timeframe, start_date, end_date, strategy_ids, risk_ids, status, created_at,
+      INSERT INTO backtest_results (id, name, exchange, symbols, timeframe, start_date, end_date, strategy_ids, risk_ids, strategy_configs, status, created_at,
         total_pnl, total_trades, wins, losses, win_rate, daily_pnl, weekly_pnl, monthly_pnl, error)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(b.id, b.name, b.exchange, JSON.stringify(b.symbols), b.timeframe, b.startDate, b.endDate,
-      JSON.stringify(b.strategyIds), JSON.stringify(b.riskIds), b.status, b.createdAt,
+      JSON.stringify(b.strategyIds), JSON.stringify(b.riskIds),
+      b.strategyConfigs ? JSON.stringify(b.strategyConfigs) : null,
+      b.status, b.createdAt,
       b.totalPnl, b.totalTrades, b.wins, b.losses, b.winRate,
       b.dailyPnl ? JSON.stringify(b.dailyPnl) : null,
       b.weeklyPnl ? JSON.stringify(b.weeklyPnl) : null,
@@ -254,6 +259,7 @@ export class StrategyStore {
       startDate: r.start_date, endDate: r.end_date,
       strategyIds: JSON.parse(r.strategy_ids || '[]'),
       riskIds: JSON.parse(r.risk_ids || '[]'),
+      strategyConfigs: r.strategy_configs ? JSON.parse(r.strategy_configs) : null,
       status: r.status, createdAt: r.created_at,
       totalPnl: r.total_pnl, totalTrades: r.total_trades,
       wins: r.wins, losses: r.losses, winRate: r.win_rate,

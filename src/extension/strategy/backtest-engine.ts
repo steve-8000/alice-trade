@@ -40,12 +40,19 @@ export class BacktestEngine {
     private strategyStore: StrategyStore,
   ) {}
 
+  private buildConfigSnapshot(strategies: Strategy[]): Record<string, { name: string; config: Record<string, unknown> }> {
+    const snapshot: Record<string, { name: string; config: Record<string, unknown> }> = {}
+    for (const s of strategies) snapshot[s.id] = { name: s.name, config: s.config }
+    return snapshot
+  }
+
   async run(config: BacktestConfig): Promise<string> {
     const id = `bt-${Date.now().toString(36)}`
     const now = new Date().toISOString()
 
     const tradingStrategies = this.strategyStore.getEnabledStrategies('trading')
     const riskStrategies = this.strategyStore.getEnabledStrategies('risk')
+    const strategyConfigs = this.buildConfigSnapshot([...tradingStrategies, ...riskStrategies])
 
     if (tradingStrategies.length === 0) {
       this.strategyStore.insertBacktest({
@@ -53,6 +60,7 @@ export class BacktestEngine {
         symbols: [config.symbol], timeframe: config.timeframe,
         startDate: config.startDate, endDate: config.endDate,
         strategyIds: [], riskIds: riskStrategies.map(s => s.id),
+        strategyConfigs,
         status: 'error', createdAt: now,
         totalPnl: null, totalTrades: null, wins: null, losses: null, winRate: null,
         dailyPnl: null, weeklyPnl: null, monthlyPnl: null,
@@ -75,6 +83,7 @@ export class BacktestEngine {
         startDate: config.startDate, endDate: config.endDate,
         strategyIds: tradingStrategies.map(s => s.id),
         riskIds: riskStrategies.map(s => s.id),
+        strategyConfigs,
         status: 'error', createdAt: now,
         totalPnl: null, totalTrades: null, wins: null, losses: null, winRate: null,
         dailyPnl: null, weeklyPnl: null, monthlyPnl: null,
@@ -115,6 +124,7 @@ export class BacktestEngine {
       startDate: config.startDate, endDate: config.endDate,
       strategyIds: tradingStrategies.map(s => s.id),
       riskIds: riskStrategies.map(s => s.id),
+      strategyConfigs,
       status: 'completed', createdAt: now,
       totalPnl, totalTrades: trades.length, wins, losses,
       winRate: trades.length > 0 ? wins / trades.length : 0,
