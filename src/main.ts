@@ -183,6 +183,7 @@ async function main() {
   const frontalLobe = brain.getFrontalLobe()
   const emotion = brain.getEmotion().current
   const instructionParts = [
+    '/no_think',
     persona,
     '---',
     '## Current Brain State',

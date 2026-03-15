@@ -68,53 +68,7 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
     }
     case 'openai': {
       const { createOpenAI } = await import('@ai-sdk/openai')
-      const apiKey = await resolveApiKey('openai')
-      // For Ollama: use native /api/chat with think:false via a fetch wrapper
-      const isOllama = url?.includes('11434')
-      if (isOllama) {
-        const ollamaBase = url!.replace(/\/v1\/?$/, '')
-        const client = createOpenAI({ apiKey: apiKey || 'ollama', baseURL: url || undefined })
-        const baseModel = client.chat(m)
-        // Wrap doGenerate to inject think:false via Ollama's native API
-        const wrappedModel = {
-          ...baseModel,
-          modelId: baseModel.modelId,
-          provider: baseModel.provider,
-          specificationVersion: baseModel.specificationVersion,
-          defaultObjectGenerationMode: baseModel.defaultObjectGenerationMode,
-          async doGenerate(options: any) {
-            // Call Ollama native API with think:false
-            const messages = options.prompt?.map((p: any) => {
-              if (p.role === 'system') return { role: 'system', content: typeof p.content === 'string' ? p.content : p.content?.map((c: any) => c.text || '').join('') }
-              if (p.role === 'user') return { role: 'user', content: typeof p.content === 'string' ? p.content : p.content?.map((c: any) => c.type === 'text' ? c.text : '').join('') }
-              if (p.role === 'assistant') return { role: 'assistant', content: typeof p.content === 'string' ? p.content : p.content?.map((c: any) => c.type === 'text' ? c.text : c.type === 'tool-call' ? JSON.stringify(c) : '').join('') }
-              return { role: p.role, content: '' }
-            }) || []
-
-            const body = { model: m, messages, stream: false, think: false, options: { num_ctx: 131072 } }
-            const res = await fetch(`${ollamaBase}/api/chat`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            })
-            if (!res.ok) throw new Error(`Ollama error: ${res.status}`)
-            const data = await res.json() as any
-            const text = data.message?.content || ''
-            return {
-              text,
-              finishReason: 'stop' as const,
-              usage: { promptTokens: data.prompt_eval_count || 0, completionTokens: data.eval_count || 0, totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0) },
-              rawCall: { rawPrompt: messages, rawSettings: body },
-              warnings: [],
-            }
-          },
-          async doStream(options: any) {
-            // For streaming, fall back to base model (thinking will happen but content comes through)
-            return baseModel.doStream(options)
-          },
-        } as any
-        return { model: wrappedModel, key }
-      }
+      const apiKey = await resolveApiKey('openai') || (url ? 'ollama' : undefined)
       const client = createOpenAI({ apiKey, baseURL: url || undefined })
       return { model: client.chat(m, { reasoning: false }), key }
     }
