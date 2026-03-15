@@ -70,7 +70,7 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
       const { createOpenAI } = await import('@ai-sdk/openai')
       const apiKey = await resolveApiKey('openai')
       const client = createOpenAI({ apiKey, baseURL: url || undefined })
-      return { model: client.chat(m), key }
+      return { model: client.chat(m, { reasoning: false }), key }
     }
     case 'google': {
       const { createGoogleGenerativeAI } = await import('@ai-sdk/google')
