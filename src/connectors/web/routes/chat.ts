@@ -8,6 +8,7 @@ import type { AskOptions } from '../../../core/ai-provider-manager.js'
 import { SessionStore, toChatHistory } from '../../../core/session.js'
 import { readWebSubchannels } from '../../../core/config.js'
 import { resolveMediaPath } from '../../../core/media-store.js'
+import type { WsBroadcast } from '../web-plugin.js'
 
 export interface SSEClient {
   id: string
@@ -18,13 +19,14 @@ interface ChatDeps {
   ctx: EngineContext
   sessions: Map<string, SessionStore>
   sseByChannel: Map<string, Map<string, SSEClient>>
+  wsBroadcast?: WsBroadcast
 }
 
 const SESSION_IDLE_TIMEOUT_MS = 60 * 60 * 1000 // 1 hour
 const lastActivity = new Map<string, number>()
 
 /** Chat routes: POST /, GET /history, GET /events (SSE) */
-export function createChatRoutes({ ctx, sessions, sseByChannel }: ChatDeps) {
+export function createChatRoutes({ ctx, sessions, sseByChannel, wsBroadcast }: ChatDeps) {
   const app = new Hono()
 
   // Auto-clear idle sessions every 5 minutes
@@ -79,6 +81,11 @@ export function createChatRoutes({ ctx, sessions, sseByChannel }: ChatDeps) {
     // Also push to other SSE clients for multi-tab sync (best-effort).
     const channelClients = sseByChannel.get(channelId) ?? new Map()
 
+    // Broadcast AI start to WebSocket clients
+    if (wsBroadcast) {
+      wsBroadcast({ type: 'ai-start', channelId })
+    }
+
     return streamSSE(c, async (sseStream) => {
       try {
         for await (const event of stream) {
@@ -91,6 +98,11 @@ export function createChatRoutes({ ctx, sessions, sseByChannel }: ChatDeps) {
           // Push to other SSE clients (best-effort, multi-tab)
           for (const client of channelClients.values()) {
             try { client.send(data) } catch { /* disconnected */ }
+          }
+
+          // Broadcast to WebSocket clients (for background updates)
+          if (wsBroadcast) {
+            wsBroadcast({ type: 'ai-stream', channelId, event })
           }
         }
 
@@ -109,12 +121,22 @@ export function createChatRoutes({ ctx, sessions, sseByChannel }: ChatDeps) {
         await sseStream.writeSSE({
           data: JSON.stringify({ type: 'done', text: result.text, media }),
         })
+
+        // Broadcast completion to WebSocket clients
+        if (wsBroadcast) {
+          wsBroadcast({ type: 'ai-done', channelId, text: result.text })
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error('chat: stream error:', msg)
         await sseStream.writeSSE({
           data: JSON.stringify({ type: 'error', error: msg }),
         })
+
+        // Broadcast error to WebSocket clients
+        if (wsBroadcast) {
+          wsBroadcast({ type: 'ai-error', channelId, error: msg })
+        }
       }
     })
   })

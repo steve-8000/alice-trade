@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useWebSocket } from './hooks/useWebSocket'
 import { Sidebar } from './components/Sidebar'
 import { ChatPage } from './pages/ChatPage'
 import { PortfolioPage } from './pages/PortfolioPage'
@@ -36,12 +37,14 @@ export const ROUTES: Record<Page, string> = {
 export function App() {
   const [sseConnected, setSseConnected] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { aiWorking } = useWebSocket()
   const location = useLocation()
 
   return (
     <div className="flex h-full">
       <Sidebar
         sseConnected={sseConnected}
+        aiWorking={aiWorking}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -58,6 +61,9 @@ export function App() {
             </svg>
           </button>
           <span className="text-sm font-semibold text-text">Clab</span>
+          {aiWorking && (
+            <span className="text-[11px] text-accent animate-pulse">AI working...</span>
+          )}
         </div>
         <div key={location.pathname} className="page-fade-in flex-1 flex flex-col min-h-0">
           <Routes>

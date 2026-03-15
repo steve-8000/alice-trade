@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { resolve } from 'node:path'
+import { WebSocketServer, WebSocket } from 'ws'
 import type { Plugin, EngineContext } from '../../core/types.js'
 import { SessionStore } from '../../core/session.js'
 import { WebConnector } from './web-connector.js'
@@ -25,9 +26,12 @@ export interface WebConfig {
   port: number
 }
 
+export type WsBroadcast = (event: { type: string; [key: string]: unknown }) => void
+
 export class WebPlugin implements Plugin {
   name = 'web'
   private server: ReturnType<typeof serve> | null = null
+  private wss: WebSocketServer | null = null
   /** SSE clients grouped by channel ID. Default channel: 'default'. */
   private sseByChannel = new Map<string, Map<string, SSEClient>>()
   private unregisterConnector?: () => void
@@ -69,8 +73,19 @@ export class WebPlugin implements Plugin {
 
     app.use('/api/*', cors())
 
+    // ==================== WebSocket broadcast ====================
+    const wsClients = new Set<WebSocket>()
+    const wsBroadcast: WsBroadcast = (event) => {
+      const data = JSON.stringify(event)
+      for (const ws of wsClients) {
+        if (ws.readyState === WebSocket.OPEN) {
+          try { ws.send(data) } catch { /* ignore */ }
+        }
+      }
+    }
+
     // ==================== Mount route modules ====================
-    app.route('/api/chat', createChatRoutes({ ctx, sessions, sseByChannel: this.sseByChannel }))
+    app.route('/api/chat', createChatRoutes({ ctx, sessions, sseByChannel: this.sseByChannel, wsBroadcast }))
     app.route('/api/channels', createChannelsRoutes({ sessions, sseByChannel: this.sseByChannel }))
     app.route('/api/media', createMediaRoutes())
     app.route('/api/config', createConfigRoutes({
@@ -109,11 +124,31 @@ export class WebPlugin implements Plugin {
     this.server = serve({ fetch: app.fetch, port: this.config.port }, (info: { port: number }) => {
       console.log(`web plugin listening on http://localhost:${info.port}`)
     })
+
+    // ==================== WebSocket server for real-time AI status broadcasting ====================
+    this.wss = new WebSocketServer({ noServer: true })
+
+    this.wss.on('connection', (ws) => {
+      wsClients.add(ws)
+      ws.on('close', () => wsClients.delete(ws))
+      ws.on('error', () => wsClients.delete(ws))
+    })
+
+    this.server.on('upgrade', (request, socket, head) => {
+      if (request.url === '/api/ws') {
+        this.wss!.handleUpgrade(request, socket, head, (ws) => {
+          this.wss!.emit('connection', ws, request)
+        })
+      } else {
+        socket.destroy()
+      }
+    })
   }
 
   async stop() {
     this.sseByChannel.clear()
     this.unregisterConnector?.()
+    this.wss?.close()
     this.server?.close()
   }
 }
