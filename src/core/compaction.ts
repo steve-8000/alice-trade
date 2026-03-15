@@ -97,8 +97,8 @@ export function getActiveEntries(entries: SessionEntry[]): SessionEntry[] {
 // ==================== Microcompact (no LLM call) ====================
 
 const TRUNCATION_PLACEHOLDER = '[content truncated during compaction]'
-const LARGE_TOOL_RESULT_THRESHOLD = 500 // characters
-const MIN_MICROCOMPACT_SAVINGS = 20_000  // tokens
+const LARGE_TOOL_RESULT_THRESHOLD = 300 // characters
+const MIN_MICROCOMPACT_SAVINGS = 5_000  // tokens
 
 /**
  * Strip large old tool results in-memory. Does NOT write to disk.

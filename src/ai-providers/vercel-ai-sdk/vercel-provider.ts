@@ -89,8 +89,8 @@ export class VercelAIProvider implements AIProvider {
           media.push(...extractMediaFromToolOutput(tr.output))
           let content = typeof tr.output === 'string' ? tr.output : JSON.stringify(tr.output ?? '')
           // Truncate large tool outputs to prevent context overflow
-          if (content.length > 12000) {
-            content = content.slice(0, 10000) + `\n\n[... output truncated from ${content.length} to 10000 chars. Use more specific queries to get detailed data.]`
+          if (content.length > 4000) {
+            content = content.slice(0, 3000) + `\n[truncated ${content.length}→3000 chars]`
           }
           channel.push({ type: 'tool_result', tool_use_id: tr.toolCallId, content })
         }

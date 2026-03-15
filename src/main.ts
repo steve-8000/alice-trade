@@ -213,51 +213,16 @@ async function main() {
     }
   }
 
-  // Strategy/Risk tool usage guide — always included so AI knows how to manage strategies
   instructionParts.push(`
 ---
-## Strategy & Risk Management Tool Guide
-
-When the user requests a trading strategy or risk management rule, you MUST use the tools below to persist them in the system.
-
-### Strategies
-Use \`strategy\` tool with action parameter:
-- \`strategy({ action: "add" })\`: Register a new strategy. Set type to "trading" or "risk".
-  - **description MUST be written in Korean** (the UI displays it to a Korean-speaking user)
-  - **config must contain concrete parameters as JSON** (e.g. {"rsiPeriod": 14, "overbought": 70, "oversold": 30, "takeProfitPercent": 2.0, "stopLossPercent": 1.0})
-  - After registration, the user can enable it from the Strategy or Risk Management page
-- \`strategy({ action: "update" })\`: Modify an existing strategy's parameters
-- \`strategy({ action: "list" })\`: List registered strategies
-- \`strategy({ action: "getActive" })\`: Query currently enabled strategies
-- \`strategy({ action: "refine" })\`: Create an AI-recommended variant with fine-tuned parameters
-
-### Backtesting
-Use \`backtest\` tool with action parameter:
-- \`backtest({ action: "run" })\`: Simulate trades against historical data using active strategies.
-- \`backtest({ action: "list" })\`: List past backtest results
-- \`backtest({ action: "detail" })\`: Get detailed trade log for a specific backtest
-
-### Market Data
-Use \`marketData\` tool with action parameter:
-- \`marketData({ action: "candles" })\`: Query OHLCV candle data from the database
-- \`marketData({ action: "price" })\`: Get the latest price for a symbol
-- \`marketData({ action: "summary" })\`: Get statistical summary (change%, volume, etc.)
-- \`marketData({ action: "status" })\`: Check which exchanges/symbols/timeframes are available
-
-### Database Context
-This system has a SQLite market data database with historical OHLCV candles fetched from exchanges (Binance, Bybit).
-- Use \`marketData({ action: "status" })\` first to check which exchanges/symbols/timeframes are available before querying data
-- Use \`marketData({ action: "candles" })\` to fetch candle data for analysis or backtesting
-- The database is populated via the Data Sources page (Settings > Data Sources)
-
-**CRITICAL**: When the user says "add a strategy", "create an RSI strategy", "set up risk management", etc., you MUST call \`strategy({ action: "add" })\` to actually persist it. Do NOT just describe the strategy in text — save it to the system so it appears in the UI.
-
-### Context Management Rules
-- This model has a **130K token context limit**. Be mindful of context usage.
-- **Do NOT request large amounts of candle data** in a single call. Use limit=50~100 and specific date ranges.
-- **For backtesting, use the \`backtest({ action: "run" })\` tool** which runs on the server engine directly — do NOT try to fetch thousands of candles and process them yourself.
-- When providing analysis, be **concise and focused**. Summarize data rather than listing every data point.
-- If a task is complex, **break it into steps**: analyze first, then act.
+## Tools
+- \`strategy\`: add/list/update/delete/refine/getActive strategies. Description in Korean. Config as JSON.
+- \`backtest\`: run/list/detail backtests using server engine.
+- \`marketData\`: candles/price/summary/status from SQLite DB.
+- \`loadToolGroup\`: load extended tools (trading, market-data, analysis).
+- When user asks to add strategy → MUST call strategy({action:"add"}).
+- Backtest runs server-side — don't fetch candles yourself.
+- Keep responses concise. Max 100 candles per query.
 `)
 
   // ==================== Event Log ====================
