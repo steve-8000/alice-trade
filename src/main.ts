@@ -250,7 +250,6 @@ Multiple indicators = AND filter (majority voting). Tune by changing these numer
 - Add Stoch filter: set stochLen(14), stochOverbought(75), stochOversold(25)
 - Use customFilters for ADX trend strength: [{"indicator":"adx","period":14,"operator":"above","value":25,"role":"longFilter"}]
 - Each test MUST change at least 2-3 numeric params from the previous test. Do NOT just change text descriptions.
-- **MAX 3 backtests per request**. Run at most 3 tests, then report results and stop. Ask user before running more.
 
 Available customFilter indicators: close, high, low, volume, sma, ema, rsi, atr, vwap, williamsR, cci, adx, roc, momentum, obv, mfi, psar, ichimoku_tenkan, ichimoku_kijun, donchian_upper, donchian_lower, keltner_upper, keltner_lower, stddev, cmf, highest, lowest, dema, tema, wma, hma, trix, chop, aroon_up, aroon_down, ultimate_osc, ppo, dpo, mass_index, stoch_k, stoch_d, macd_line, macd_signal, macd_histogram, bb_upper, bb_lower, bb_middle, wt1, wt2, sma_volume
 Operators: above, below, crossAbove, crossBelow
