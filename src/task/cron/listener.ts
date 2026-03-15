@@ -31,6 +31,10 @@ export interface CronListenerOpts {
 export interface CronListener {
   start(): void
   stop(): void
+  /** Abort any currently running AI generation. */
+  abortCurrent(): boolean
+  /** Is a cron job AI generation currently running? */
+  isProcessing(): boolean
 }
 
 // ==================== Factory ====================
@@ -41,6 +45,7 @@ export function createCronListener(opts: CronListenerOpts): CronListener {
 
   let unsubscribe: (() => void) | null = null
   let processing = false
+  let currentAbort: AbortController | null = null
 
   async function handleFire(entry: EventLogEntry): Promise<void> {
     const payload = entry.payload as CronFirePayload
@@ -55,6 +60,7 @@ export function createCronListener(opts: CronListenerOpts): CronListener {
     }
 
     processing = true
+    currentAbort = new AbortController()
     const startMs = Date.now()
 
     try {
@@ -62,6 +68,12 @@ export function createCronListener(opts: CronListenerOpts): CronListener {
       const result = await agentCenter.askWithSession(payload.payload, session, {
         historyPreamble: 'The following is the recent cron session conversation. This is an automated cron job execution.',
       })
+
+      // Check if aborted
+      if (currentAbort.signal.aborted) {
+        console.log(`cron-listener: job ${payload.jobId} was aborted`)
+        return
+      }
 
       // Send notification through the last-interacted connector
       try {
@@ -92,6 +104,7 @@ export function createCronListener(opts: CronListenerOpts): CronListener {
       })
     } finally {
       processing = false
+      currentAbort = null
     }
   }
 
@@ -99,7 +112,6 @@ export function createCronListener(opts: CronListenerOpts): CronListener {
     start() {
       if (unsubscribe) return // already started
       unsubscribe = eventLog.subscribeType('cron.fire', (entry) => {
-        // Fire-and-forget — errors are caught inside handleFire
         handleFire(entry).catch((err) => {
           console.error('cron-listener: unhandled error in handleFire:', err)
         })
@@ -107,8 +119,20 @@ export function createCronListener(opts: CronListenerOpts): CronListener {
     },
 
     stop() {
+      currentAbort?.abort()
       unsubscribe?.()
       unsubscribe = null
+    },
+
+    abortCurrent() {
+      if (!processing || !currentAbort) return false
+      currentAbort.abort()
+      console.log('cron-listener: aborted current job')
+      return true
+    },
+
+    isProcessing() {
+      return processing
     },
   }
 }
