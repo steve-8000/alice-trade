@@ -5,13 +5,7 @@ import { ChatPage } from './pages/ChatPage'
 import { PortfolioPage } from './pages/PortfolioPage'
 import { EventsPage } from './pages/EventsPage'
 import { SettingsPage } from './pages/SettingsPage'
-import { AIProviderPage } from './pages/AIProviderPage'
-import { DataSourcesPage } from './pages/DataSourcesPage'
-import { TradingPage } from './pages/TradingPage'
-import { ConnectorsPage } from './pages/ConnectorsPage'
-import { DevPage } from './pages/DevPage'
 import { HeartbeatPage } from './pages/HeartbeatPage'
-import { ToolsPage } from './pages/ToolsPage'
 import StrategyPage from './pages/StrategyPage'
 import RiskPage from './pages/RiskPage'
 import AITradingCenterPage from './pages/AITradingCenterPage'
@@ -71,16 +65,17 @@ export function App() {
             <Route path="/portfolio" element={<PortfolioPage />} />
             <Route path="/events" element={<EventsPage />} />
             <Route path="/heartbeat" element={<HeartbeatPage />} />
-            <Route path="/data-sources" element={<DataSourcesPage />} />
-            <Route path="/connectors" element={<ConnectorsPage />} />
-            <Route path="/tools" element={<ToolsPage />} />
-            <Route path="/trading" element={<TradingPage />} />
             <Route path="/strategy" element={<StrategyPage />} />
             <Route path="/risk" element={<RiskPage />} />
             <Route path="/ai-trading" element={<AITradingCenterPage />} />
-            <Route path="/ai-provider" element={<AIProviderPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/dev" element={<DevPage />} />
+            {/* Redirect old individual routes to settings */}
+            <Route path="/data-sources" element={<Navigate to="/settings" replace />} />
+            <Route path="/connectors" element={<Navigate to="/settings" replace />} />
+            <Route path="/tools" element={<Navigate to="/settings" replace />} />
+            <Route path="/trading" element={<Navigate to="/settings" replace />} />
+            <Route path="/ai-provider" element={<Navigate to="/settings" replace />} />
+            <Route path="/dev" element={<Navigate to="/settings" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
